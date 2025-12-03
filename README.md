@@ -1,123 +1,274 @@
-# Procuro Backend
+# Procuro – Backend Documentation
 
-AI-assisted Request for Proposal (RFP) management backend built with Node.js, Express, PostgreSQL, and Google Gemini for language understanding. The service ingests vendor emails over IMAP, stores RFP and proposal records, and exposes REST endpoints documented via OpenAPI/Swagger.
+AI-powered Request for Proposal (RFP) management backend that transforms natural language purchase requests into structured RFPs, emails vendors, ingests replies over IMAP, and compares proposals using Groq's llama3-8b-8192 model. This README consolidates the full assignment deliverable with architecture diagrams, setup steps, and endpoint references. The React frontend scaffold in `frontend/` is optional and incomplete; evaluating the backend alone satisfies the submission.
 
 ---
 
 ## Table of Contents
 
-1. [Architecture](#architecture)
-2. [Prerequisites](#prerequisites)
-3. [Environment Variables](#environment-variables)
-4. [Setup & Local Development](#setup--local-development)
-5. [Database Schema](#database-schema)
-6. [IMAP Email Ingestion](#imap-email-ingestion)
-7. [AI Modules](#ai-modules)
-8. [API Overview](#api-overview)
-9. [Endpoint Reference](#endpoint-reference)
-10. [Error Handling](#error-handling)
-11. [Swagger Documentation](#swagger-documentation)
-12. [Testing with Postman](#testing-with-postman)
+1. [Repository Layout](#repository-layout)
+2. [Architecture](#architecture)
+     - [High-Level Diagram](#high-level-diagram)
+     - [Data Flow](#data-flow)
+     - [Low-Level Design](#low-level-design)
+3. [Tech Stack](#tech-stack)
+4. [Assumptions & Key Decisions](#assumptions--key-decisions)
+5. [Environment Variables](#environment-variables)
+6. [Project Setup](#project-setup)
+     - [Backend](#backend)
+     - [Frontend (Optional Shell)](#frontend-optional-shell)
+     - [Email Configuration](#email-configuration)
+     - [Seed Data](#seed-data)
+7. [Database Schema](#database-schema)
+8. [AI Modules](#ai-modules)
+9. [IMAP Email Ingestion](#imap-email-ingestion)
+10. [API Documentation](#api-documentation)
+11. [Error Handling](#error-handling)
+12. [Swagger Documentation](#swagger-documentation)
+13. [AI Tools Usage During Development](#ai-tools-usage-during-development)
+14. [Demo Video](#demo-video)
+15. [Known Limitations & Next Steps](#known-limitations--next-steps)
+
+---
+
+## Repository Layout
+
+```
+procuro/
+    backend/
+        src/
+            api/
+                rfp/
+                vendor/
+                proposal/
+                email/
+            utils/
+                llm/
+            db/
+            config/
+            app.js
+            server.js
+            swagger.yml
+        package.json
+        README.md (backend focused)
+    frontend/
+        src/
+            api/
+            components/
+            pages/
+        package.json
+    README.md (this file)
+```
 
 ---
 
 ## Architecture
 
-- **Runtime:** Node.js + Express application (`src/app.js`, `src/server.js`)
-- **Database:** PostgreSQL accessed via `pg` connection pool (`src/db/index.js`)
-- **Email:** IMAP listener based on ImapFlow (`src/api/email/email.imap.js`) and SMTP delivery through Nodemailer (`src/config/mail.js`)
-- **AI Integration:** Google Gemini API (JSON extraction via HTTP) and Groq-hosted LLaMA 3 for proposal parsing helpers (`src/utils/llm/*`)
-- **Routing pattern:** Feature folders under `src/api/<domain>` containing `*.routes.js`, `*.controller.js`, and `*.service.js`
-- **Configuration:** `.env` file loaded through `src/config/env.js`
-- **Observability:** Minimal structured logging via `src/utils/logger.js`
+### High-Level Diagram
 
-Directory layout:
-
+```mermaid
+graph LR
+    Browser[User Browser] -- REST --> API[Express Backend]
+    API -- SQL --> PG[(PostgreSQL)]
+    API -- SMTP --> SMTP[SMTP Server]
+    API -- IMAP IDLE --> IMAP[IMAP Mailbox]
+    API -- HTTPS --> GroqLLM[Groq LPU Cloud]
 ```
-backend/
-    src/
-        api/
-            rfp/
-            vendor/
-            proposal/
-            email/
-            email.imap.js
-        utils/
-            llm/
-        db/
-        config/
-        app.js
-        server.js
-        swagger.yml
-    package.json
-    README.md
-    .env (not committed)
+
+### Data Flow
+
+```mermaid
+sequenceDiagram
+    participant User as Procurement Manager
+    participant API as Express API
+    participant DB as PostgreSQL
+    participant SMTP as SMTP Server
+    participant IMAP as IMAP Mailbox
+    participant LLM as Groq LLM
+
+    User->>API: POST /rfp (natural-language payload)
+    API->>LLM: Generate structured RFP
+    LLM-->>API: Structured JSON
+    API->>DB: Insert RFP
+    User->>API: POST /email/send (rfpId + vendorIds)
+    API->>DB: Fetch vendors & RFP
+    API->>SMTP: Send email per vendor
+    Vendor->>IMAP: Reply with proposal email
+    API->>IMAP: Poll unseen mail (startImapListener)
+    IMAP-->>API: New message
+    API->>LLM: Parse vendor proposal
+    LLM-->>API: Structured proposal JSON
+    API->>DB: Insert proposal record
+    User->>API: GET /rfp/:id/compare
+    API->>DB: Load RFP + proposals
+    API->>LLM: Compare proposals
+    LLM-->>API: Ranking, scores, recommendation
+    API-->>User: AI-assisted comparison
+```
+
+### Low-Level Design
+
+```mermaid
+classDiagram
+    class App {
+        +express.json()
+        +cors()
+        +/docs (Swagger)
+        +/rfp, /vendors, /proposals, /email routes
+    }
+    class RfpController {
+        +createRfp(req,res)
+        +getAllRfps(req,res)
+        +getRfpById(req,res)
+        +generateRfpFromText(req,res)
+        +compareProposals(req,res)
+    }
+    class RfpService {
+        +createRfp(data)
+        +getRfpById(id)
+        +getAllRfps()
+    }
+    class VendorService {
+        +createVendor(data)
+        +getAllVendors()
+    }
+    class ProposalService {
+        +createProposal(data)
+        +getProposalById(id)
+        +getProposalsByRfpId(rfpId)
+    }
+    class EmailController {
+        +sendRfpEmail(req,res)
+    }
+    class ImapListener {
+        +startImapListener(callback)
+    }
+    class LlmHelpers {
+        +generateStructuredRfp(rawText)
+        +compareProposalsAi(rfpId)
+        +parseVendorProposal(emailBody)
+    }
+    RfpController --> RfpService
+    RfpController --> LlmHelpers
+    ProposalService --> LlmHelpers
+    EmailController --> RfpService
+    EmailController --> VendorService
+    ImapListener --> LlmHelpers
+    RfpService --> DB[(pg Pool)]
+    VendorService --> DB
+    ProposalService --> DB
 ```
 
 ---
 
-## Prerequisites
+## Tech Stack
 
-| Requirement | Version | Notes |
-|-------------|---------|-------|
-| Node.js     | >= 18   | Required for native fetch, top-level await compatibility |
-| npm         | >= 9    | Used for dependency management |
-| PostgreSQL  | 14+     | Stores RFP, vendor, and proposal data |
-| Google Gemini API key | – | Used for structured RFP generation and comparisons |
-| IMAP mailbox | – | Must support IDLE and allow programmatic access |
+| Layer | Technology | Notes |
+|-------|------------|-------|
+| Backend | Node.js 18+, Express 4 | REST API, routing, middleware |
+| Database | PostgreSQL + `pg` | Connection pool with basic health logging |
+| Email Sending | Nodemailer | Authenticated SMTP (TLS on port 465 assumed) |
+| Email Ingestion | ImapFlow | Robust IMAP client with idle reconnect logic |
+| AI Provider | Groq llama3-8b-8192 | JSON extraction for RFP creation, proposal parsing, comparison |
+| API Docs | Swagger UI | Served from `/docs`, spec in `backend/src/swagger.yml` |
+| Frontend (scaffold) | React + Vite | Present but minimal; not required for backend evaluation |
+
+---
+
+## Assumptions & Key Decisions
+
+- **Single user workflow**: No authentication or multi-tenant logic required by the brief.
+- **Structured storage**: Persist Groq responses in JSONB alongside human-readable fields for analytics.
+- **Proposal intake**: IMAP callback currently logs new emails; storage integration example provided for extensibility.
+- **Strict JSON contracts**: AI helpers enforce JSON-only responses to avoid brittle parsing.
+- **Comparison guardrails**: Comparison endpoint fails fast when no proposals exist, preventing misleading output.
+- **Frontend optionality**: Backend can be evaluated and demoed without completing the React client.
 
 ---
 
 ## Environment Variables
 
-Create `.env` in the project root. All variables are mandatory unless noted.
+Create `backend/.env` from `backend/.env.example`.
 
 | Variable | Description |
 |----------|-------------|
 | `DATABASE_URL` | PostgreSQL connection string (e.g. `postgres://user:pass@localhost:5432/procuro`) |
-| `SMTP_HOST` | Outgoing SMTP host for vendor notifications |
-| `SMTP_PORT` | SMTP port (465 for implicit TLS) |
-| `SMTP_USER` | SMTP username |
-| `SMTP_PASS` | SMTP password |
-| `IMAP_HOST` | IMAP server hostname |
-| `IMAP_PORT` | IMAP port (993 recommended for TLS) |
-| `IMAP_USER` | IMAP login username |
-| `IMAP_PASS` | IMAP login password |
-| `LLM_API_KEY` | API key shared by Gemini and Groq clients |
-| `PORT` | HTTP port for the Express server (defaults to `3000` if unset) |
+| `SMTP_HOST` | SMTP hostname for outgoing mail |
+| `SMTP_PORT` | SMTP port (465 recommended for implicit TLS) |
+| `SMTP_USER` / `SMTP_PASS` | SMTP credentials |
+| `IMAP_HOST` / `IMAP_PORT` | IMAP hostname & port (993 recommended) |
+| `IMAP_USER` / `IMAP_PASS` | IMAP credentials |
+| `LLM_API_KEY` | Groq API key consumed by all AI helpers |
+| `PORT` | Express listen port (defaults to `3000`) |
 
-> `src/config/env.js` validates these variables at startup; missing keys stop the process with a descriptive error.
+`src/config/env.js` validates presence and parses integer fields before exporting configuration.
 
 ---
 
-## Setup & Local Development
+## Project Setup
+
+### Backend
 
 ```bash
+cd backend
+
 # install dependencies
 npm install
 
-# copy environment template (edit with real values)
+# configure environment
 cp .env.example .env
+# edit .env with database, SMTP, IMAP, and Groq credentials
 
-# create database objects
+# provision schema
 psql "$DATABASE_URL" -f src/db/models.sql
 
-# start the server
-npm run dev   # uses nodemon
+# run server
+npm run dev   # nodemon
 # or
-npm start     # plain node
+npm start     # node src/server.js
 
-# API will be available at http://localhost:5000 (default .env sample)
-# Interactive docs: http://localhost:5000/docs
+# API base URL (default): http://localhost:5000
+# Swagger UI: http://localhost:5000/docs
 ```
 
-The server boots immediately, then launches the IMAP listener. Listener failures are logged and retried without terminating the process.
+Server boot triggers IMAP listener startup; failures are logged and retried with five-second backoff.
+
+### Frontend (Optional Shell)
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+The React app provides skeleton pages (`RfpCreate`, `Proposals`, `Vendors`) and Axios client; wiring to the backend is a future enhancement.
+
+### Email Configuration
+
+- Use the same mailbox for SMTP sender and IMAP listener to simplify threading.
+- Ensure the account permits programmatic IMAP access and exposes the `INBOX` folder.
+- TLS is assumed for both SMTP (465) and IMAP (993); adjust env vars if plaintext is required.
+
+### Seed Data
+
+Use `src/db/models.sql` to create tables. Seed RFPs/vendors via API calls or direct SQL inserts. Example SQL snippet:
+
+```sql
+INSERT INTO vendor (name, email)
+VALUES ('Acme Supplies', 'sales@acme.example');
+
+INSERT INTO rfp (title, description_raw, description_structured, items)
+VALUES (
+    'Office Network Refresh',
+    'Upgrade switching, add redundant firewall, PoE for cameras.',
+    '{"items":["Core switches","Firewall failover"],"budget":"45000"}',
+    '{"items":["Core switches","Firewall failover"]}'
+);
+```
 
 ---
 
 ## Database Schema
-
-The schema lives in `src/db/models.sql`.
 
 ```sql
 CREATE TABLE rfp (
@@ -148,82 +299,75 @@ CREATE TABLE proposal (
 );
 ```
 
-`rfp.service.js` validates that `title` and `items` are provided before insertion. Proposal records store the raw vendor email plus AI-parsed JSON.
+- `rfp.service.js` ensures `title` and `items` (array) are present.
+- Proposals store raw email plus AI-parsed summary for auditability.
+
+---
+
+## AI Modules
+
+| File | Responsibility | Invoked By |
+|------|----------------|------------|
+| `src/utils/llm/generateRfp.js` | Convert natural language into structured RFP JSON | `POST /rfp/from-text` |
+| `src/utils/llm/compare.js` | Rank proposals and return justification | `GET /rfp/:id/compare` |
+| `src/utils/llm/parseVendorProposal.js` | Normalize vendor email content | IMAP callback (example provided) |
+
+All helpers trim Markdown fences and parse Groq JSON responses; malformed payloads bubble as `400 {"error": "..."}`.
 
 ---
 
 ## IMAP Email Ingestion
 
-`src/api/email/email.imap.js` wraps ImapFlow to poll unseen messages:
+`src/api/email/email.imap.js` encapsulates ImapFlow lifecycle management:
 
-- Establishes a TLS IMAP session using the configured credentials.
-- Locks the `INBOX`, fetches unseen messages every 60 seconds, and marks them as `\Seen` after processing.
-- Emits each message to a caller-supplied callback. In `src/server.js`, the default handler simply logs the subject; extend this callback to persist parsed proposals.
-- Handles idle/timeout/close events with automatic reconnect (5-second backoff) so socket failures never crash Node.js.
+- Single connection with guarded reconnects to avoid flapping.
+- Mailbox lock ensures exclusive access while fetching unseen mail.
+- Deduplication via `fetchInFlight` prevents overlapping fetch cycles.
+- Consumer callback receives `{ subject, body }`. Extend to parse and persist proposals.
 
-To attach proposal parsing, implement in `server.js`:
+Integration sketch:
 
 ```js
-const { parseVendorProposal } = require('./utils/llm/parseVendorProposal');
-const proposalService = require('./api/proposal/proposal.service');
+const { parseVendorProposal } = require('../utils/llm/parseVendorProposal');
+const proposalService = require('../api/proposal/proposal.service');
 
 startImapListener(async ({ body }) => {
     const parsed = await parseVendorProposal(body);
     await proposalService.createProposal({
-        rfp_id: /* map email -> RFP */,
-        vendor_id: /* resolve vendor */,
+        rfp_id: resolveRfpId(body),
+        vendor_id: resolveVendorId(body),
         raw_email: body,
         parsed
     });
 });
 ```
 
----
-
-## AI Modules
-
-Located under `src/utils/llm/`:
-
-| Module | Provider | Purpose |
-|--------|----------|---------|
-| `generateRfp.js` | Google Gemini 1.5 Flash | Extracts structured RFP JSON from freeform text (`POST /rfp/from-text`). |
-| `compare.js` | Google Gemini 1.5 Flash | Scores stored proposals against an RFP (`GET /rfp/:id/compare`). |
-| `parseVendorProposal.js` | Google Gemini 1.5 Flash | Converts vendor email text into normalized proposal fields (used in IMAP pipeline). |
-
-All helpers remove Markdown code fences and `JSON.parse` the model response. Ensure the upstream model is instructed to return JSON-only output; malformed responses throw and surface as `400` errors.
+Mapping helper functions (`resolveRfpId`, `resolveVendorId`) depend on your email formatting strategy.
 
 ---
 
-## API Overview
+## API Documentation
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `POST` | `/rfp` | Create an RFP record. |
-| `GET` | `/rfp` | List all RFPs (descending ID). |
-| `GET` | `/rfp/:id` | Fetch a single RFP by ID. |
-| `POST` | `/rfp/from-text` | AI-assisted structured RFP generation from raw text. |
-| `GET` | `/rfp/:id/compare` | AI comparison of proposals linked to the RFP. |
-| `POST` | `/vendors` | Register a vendor. |
-| `GET` | `/vendors` | List vendors. |
-| `POST` | `/proposals` | Persist a vendor proposal. |
-| `GET` | `/proposals/:id` | Fetch proposal by ID. |
-| `GET` | `/proposals/rfp/:rfpId` | List proposals for an RFP. |
-| `POST` | `/email/send` | Broadcast RFP details to selected vendors via SMTP. |
+| `POST` | `/rfp` | Create a structured RFP record |
+| `GET` | `/rfp` | List all RFPs (descending `id`) |
+| `GET` | `/rfp/{id}` | Retrieve RFP by ID |
+| `POST` | `/rfp/from-text` | Generate structured RFP from raw text |
+| `GET` | `/rfp/{id}/compare` | AI comparison of stored proposals |
+| `POST` | `/vendors` | Create vendor entry |
+| `GET` | `/vendors` | List vendors |
+| `POST` | `/proposals` | Persist proposal (raw + parsed) |
+| `GET` | `/proposals/{id}` | Retrieve proposal |
+| `GET` | `/proposals/rfp/{rfpId}` | List proposals for an RFP |
+| `POST` | `/email/send` | Broadcast RFP to selected vendors via SMTP |
 
-> There is currently **no** public HTTP endpoint for AI proposal parsing; integrate `parseVendorProposal` inside the IMAP callback or a custom route if needed.
+### Sample Payloads
 
----
-
-## Endpoint Reference
-
-Sample payloads assume `PORT=5000`.
-
-### Create RFP — `POST /rfp`
-
-**Request**
+#### Create RFP — `POST /rfp`
 
 ```http
-POST /rfp HTTP/1.1
+POST /rfp
 Content-Type: application/json
 
 {
@@ -241,9 +385,8 @@ Content-Type: application/json
 }
 ```
 
-**Success (201)**
-
 ```json
+HTTP 201
 {
     "id": 1,
     "title": "Cloud Infrastructure Upgrade",
@@ -264,105 +407,41 @@ Content-Type: application/json
 }
 ```
 
-### List RFPs — `GET /rfp`
-
-Returns JSON array sorted by descending `id`.
-
-### Get RFP — `GET /rfp/:id`
-
-- `404` when the ID is missing.
-- `400 {"error":"..."}` on database failures.
-
-### Generate RFP From Text — `POST /rfp/from-text`
-
-**Request**
-
-```http
-POST /rfp/from-text
-Content-Type: application/json
-
-{
-    "text": "We seek a vendor to supply 100 rugged tablets, include 3 year support..."
-}
-```
-
-**Success (200)**
+#### Generate RFP from Text — `POST /rfp/from-text`
 
 ```json
 {
-    "title": "Rugged Tablet Procurement",
-    "budget": "120000",
+    "text": "Need 20 laptops (16GB RAM) and 15 monitors 27-inch. Budget 50000. Delivery 30 days. Net 30. Warranty 1 year."
+}
+```
+
+```json
+HTTP 200
+{
+    "title": "Laptop and Monitor Procurement",
+    "budget": "50000",
     "items": [
-        "100 rugged tablets",
-        "Protective cases",
-        "3 year maintenance"
+        "20 laptops with 16GB RAM",
+        "15 27-inch monitors"
     ],
-    "delivery_timeline": "8 weeks",
-    "payment_terms": "Net 45",
-    "warranty": "36 months"
+    "delivery_timeline": "30 days",
+    "payment_terms": "Net 30",
+    "warranty": "12 months"
 }
 ```
 
-### Compare Proposals — `GET /rfp/:id/compare`
-
-**Response (200)**
+#### Compare Proposals — `GET /rfp/{id}/compare`
 
 ```json
+HTTP 200
 {
     "ranking": ["3", "1", "2"],
-    "scores": {
-        "3": 92,
-        "1": 78,
-        "2": 65
-    },
+    "scores": { "3": 92, "1": 78, "2": 65 },
     "recommendation": "Vendor 3 best aligns with delivery timeline and budget constraints."
 }
 ```
 
-> Requires existing records in `proposal` for the supplied `rfp_id`. An error is returned if no proposals are available.
-
-### Create Vendor — `POST /vendors`
-
-```json
-{
-    "name": "Acme Supplies",
-    "email": "sales@acme.example"
-}
-```
-
-### List Vendors — `GET /vendors`
-
-Returns an array ordered by `id ASC`.
-
-### Create Proposal — `POST /proposals`
-
-```json
-{
-    "rfp_id": 1,
-    "vendor_id": 2,
-    "raw_email": "Dear team, our proposal...",
-    "parsed": {
-        "item_prices": [
-            { "item": "Tablets", "price": "95000" },
-            { "item": "Support", "price": "15000" }
-        ],
-        "total_cost": "110000",
-        "delivery_time": "6 weeks",
-        "terms": "Net 30",
-        "conditions": "Includes onsite training"
-    }
-}
-```
-
-### Get Proposal — `GET /proposals/:id`
-
-`404` when missing, `200` with proposal JSON when found.
-
-### List Proposals For RFP — `GET /proposals/rfp/:rfpId`
-
-Sorted by `created_at DESC`.
-
-### Send RFP Email — `POST /email/send`
+#### Send RFP Email — `POST /email/send`
 
 ```json
 {
@@ -371,64 +450,59 @@ Sorted by `created_at DESC`.
 }
 ```
 
-**Success (200)**
-
 ```json
+HTTP 200
 { "success": true, "sentTo": 2 }
 ```
 
-Messages are rendered in plain text using the stored structured RFP document and delivered via the configured SMTP transporter.
+Complete request/response schemas are documented in Swagger.
 
 ---
 
 ## Error Handling
 
-- Controllers catch service-level errors and respond with `400` and `{ "error": "message" }`.
-- Missing entities return `404` with the same JSON envelope.
-- Database connectivity issues bubble up as `400` responses unless they cause process-level failure during startup (see `src/db/index.js`).
-- IMAP listener logs all failures through `src/utils/logger.js` and auto-reconnects without throwing.
-
-Always inspect the JSON `error` field; no additional wrapping (e.g., `success` flags) is sent on failure paths.
+- Controllers return `400 {"error": "..."}` for validation issues and `404` when entities are missing.
+- Service-layer errors bubble up with descriptive messages; no generic `500` masking.
+- IMAP listener logs issues via `src/utils/logger.js` and schedules reconnects instead of crashing the process.
+- Startup aborts if env validation or initial database connectivity fails, ensuring misconfiguration is visible.
 
 ---
 
 ## Swagger Documentation
 
-- Source file: `src/swagger.yml`
-- UI endpoint: `GET /docs`
-
-Load `http://localhost:5000/docs` after starting the server to browse operations and execute test calls against the running instance.
-
----
-
-## Testing With Postman
-
-1. Set collection-level variable `baseUrl = http://localhost:5000`.
-2. Import the following sample requests:
-
-| Name | Method & URL | Body |
-|------|--------------|------|
-| `Create RFP` | `POST {{baseUrl}}/rfp` | JSON matching [Create RFP](#create-rfp--post-rfp) |
-| `List RFPs` | `GET {{baseUrl}}/rfp` | – |
-| `Generate RFP From Text` | `POST {{baseUrl}}/rfp/from-text` | `{ "text": "..." }` |
-| `Compare Proposals` | `GET {{baseUrl}}/rfp/1/compare` | – |
-| `Create Vendor` | `POST {{baseUrl}}/vendors` | `{ "name": "...", "email": "..." }` |
-| `Create Proposal` | `POST {{baseUrl}}/proposals` | See [Create Proposal](#create-proposal--post-proposals) |
-| `Send RFP Email` | `POST {{baseUrl}}/email/send` | `{ "rfpId": 1, "vendorIds": [2,3] }` |
-
-3. Inspect responses; successful calls return `200`/`201`, failures return `400`/`404` with `{ "error": "..." }`.
+- Specification lives at `backend/src/swagger.yml`.
+- Swagger UI hosted at `http://localhost:5000/docs`.
+- Supports Try-It-Out calls against the running development server.
 
 ---
 
-## Notes & Limitations
+## AI Tools Usage During Development
 
-- The AI comparison helper currently queries `proposals` (plural) while the schema defines `proposal`; adjust the table name before relying on the endpoint.
-- Proposal parsing is surfaced as a utility, not as an HTTP route. Integrate it through the IMAP listener or by adding an authenticated endpoint.
-- Ensure Gemini API responses remain valid JSON; wrap calls in try/catch to handle provider-side formatting regressions.
+| Tool | Usage |
+|------|-------|
+| GitHub Copilot (GPT-5-Codex) | Refined imports, generated Swagger spec, hardened IMAP listener, drafted documentation |
+| Groq API | Runtime feature for RFP generation, proposal parsing, and comparisons |
+
+Prompts emphasize deterministic JSON output and explicit scoring rationale for proposals.
+
+---
+
+## Demo Video
+
+- **Placeholder:** Add a Loom/Drive link demonstrating RFP creation, vendor emailing, IMAP ingestion, and proposal comparison.
+
+---
+
+## Known Limitations & Next Steps
+
+- `compareProposalsAi` queries table `proposals`; adjust to `proposal` to match schema before enabling in production.
+- IMAP callback currently logs emails only; integrate `parseVendorProposal` and ID resolution to store proposals.
+- Frontend shell needs API integration to deliver a full UX.
+- Attachments and HTML-only emails are ignored; extend `email.imap.js` to handle multipart content.
 
 ---
 
 ## License
 
-Internal engineering assignment. No public license applied.
+Internal engineering assignment; no public license supplied.
 
