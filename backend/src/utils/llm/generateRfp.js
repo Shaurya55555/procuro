@@ -8,32 +8,51 @@ const generateStructuredRfp = async (rawText) => {
   const messages = [
     {
       role: 'system',
-      content: 'You are an assistant that converts freeform procurement requests into structured JSON RFP objects.',
+      content: 'You transform procurement intents into a normalized JSON schema with the required RFP fields.',
     },
     {
       role: 'user',
-      content: `Extract the following fields and return ONLY valid JSON with matching keys and sensible defaults when the information is missing.
-
-Fields:
+      content: `From the following request, extract ONLY JSON with these keys:
 - title (string)
 - budget (string)
-- items (array of descriptive strings)
+- items (array of item description strings)
 - delivery_timeline (string)
 - payment_terms (string)
 - warranty (string)
+- description_raw (string capturing the original request)
+- description_structured (object summarizing key requirements)
 
 Raw request:
 ${rawText}`,
     },
   ];
 
-  const response = await createJsonCompletion(messages, { maxTokens: 800 });
+  const response = await createJsonCompletion(messages, { maxTokens: 900 });
 
   if (!Array.isArray(response.items)) {
-    response.items = []; // guarantee array output
+    response.items = [];
+  } else {
+    response.items = response.items.filter((value) => typeof value === 'string');
   }
 
-  return response;
+  response.description_raw = typeof response.description_raw === 'string' ? response.description_raw : rawText;
+
+  if (typeof response.description_structured !== 'object' || response.description_structured === null) {
+    response.description_structured = {};
+  }
+
+  const normalised = {
+    title: response.title ?? 'Untitled RFP',
+    budget: response.budget === null || response.budget === undefined ? '' : String(response.budget),
+    items: response.items,
+    delivery_timeline: response.delivery_timeline ? String(response.delivery_timeline) : '',
+    payment_terms: response.payment_terms ? String(response.payment_terms) : '',
+    warranty: response.warranty ? String(response.warranty) : '',
+    description_raw: response.description_raw,
+    description_structured: response.description_structured,
+  };
+
+  return normalised;
 };
 
 module.exports = { generateStructuredRfp };

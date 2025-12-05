@@ -1,10 +1,10 @@
 CREATE TABLE rfp (
   id SERIAL PRIMARY KEY,
-  title TEXT,
+  title TEXT NOT NULL,
   description_raw TEXT,
   description_structured JSONB,
-  items JSONB,
-  budget NUMERIC,
+  items JSONB NOT NULL,
+  budget TEXT,
   delivery_timeline TEXT,
   payment_terms TEXT,
   warranty TEXT,

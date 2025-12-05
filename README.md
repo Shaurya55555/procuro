@@ -1,6 +1,6 @@
 # Procuro – Backend Documentation
 
-AI-powered Request for Proposal (RFP) management backend that transforms natural language purchase requests into structured RFPs, emails vendors, ingests replies over IMAP, and compares proposals using Groq's llama3-8b-8192 model. This README consolidates the full assignment deliverable with architecture diagrams, setup steps, and endpoint references. The React frontend scaffold in `frontend/` is optional and incomplete; evaluating the backend alone satisfies the submission.
+AI-powered Request for Proposal (RFP) management backend that transforms natural language purchase requests into structured RFPs, emails vendors, ingests replies over IMAP, and compares proposals using Groq's llama-3.1-70b-versatile model. This README consolidates the full assignment deliverable with architecture diagrams, setup steps, and endpoint references. The React frontend scaffold in `frontend/` is optional and incomplete; evaluating the backend alone satisfies the submission.
 
 ---
 
@@ -146,7 +146,7 @@ classDiagram
     class LlmHelpers {
         +generateStructuredRfp(rawText)
         +compareProposalsAi(rfpId)
-        +parseVendorProposal(emailBody)
+        +parseProposal(rawEmailText)
     }
     RfpController --> RfpService
     RfpController --> LlmHelpers
@@ -169,7 +169,7 @@ classDiagram
 | Database | PostgreSQL + `pg` | Connection pool with basic health logging |
 | Email Sending | Nodemailer | Authenticated SMTP (TLS on port 465 assumed) |
 | Email Ingestion | ImapFlow | Robust IMAP client with idle reconnect logic |
-| AI Provider | Groq llama3-8b-8192 | JSON extraction for RFP creation, proposal parsing, comparison |
+| AI Provider | Groq llama-3.1-70b-versatile | JSON extraction for RFP creation, proposal parsing, comparison |
 | API Docs | Swagger UI | Served from `/docs`, spec in `backend/src/swagger.yml` |
 | Frontend (scaffold) | React + Vite | Present but minimal; not required for backend evaluation |
 
@@ -310,7 +310,7 @@ CREATE TABLE proposal (
 |------|----------------|------------|
 | `src/utils/llm/generateRfp.js` | Convert natural language into structured RFP JSON | `POST /rfp/from-text` |
 | `src/utils/llm/compare.js` | Rank proposals and return justification | `GET /rfp/:id/compare` |
-| `src/utils/llm/parseVendorProposal.js` | Normalize vendor email content | IMAP callback (example provided) |
+| `src/utils/llm/parseProposal.js` | Normalize vendor email content | `POST /proposals/parse` and IMAP callback |
 
 All helpers trim Markdown fences and parse Groq JSON responses; malformed payloads bubble as `400 {"error": "..."}`.
 
@@ -328,16 +328,16 @@ All helpers trim Markdown fences and parse Groq JSON responses; malformed payloa
 Integration sketch:
 
 ```js
-const { parseVendorProposal } = require('../utils/llm/parseVendorProposal');
+const { parseProposal } = require('../utils/llm/parseProposal');
 const proposalService = require('../api/proposal/proposal.service');
 
 startImapListener(async ({ body }) => {
-    const parsed = await parseVendorProposal(body);
+    const parsed = await parseProposal(body);
     await proposalService.createProposal({
         rfp_id: resolveRfpId(body),
         vendor_id: resolveVendorId(body),
         raw_email: body,
-        parsed
+        parsed,
     });
 });
 ```
@@ -360,6 +360,7 @@ Mapping helper functions (`resolveRfpId`, `resolveVendorId`) depend on your emai
 | `POST` | `/proposals` | Persist proposal (raw + parsed) |
 | `GET` | `/proposals/{id}` | Retrieve proposal |
 | `GET` | `/proposals/rfp/{rfpId}` | List proposals for an RFP |
+| `POST` | `/proposals/parse` | Normalize raw vendor email into structured JSON |
 | `POST` | `/email/send` | Broadcast RFP to selected vendors via SMTP |
 
 ### Sample Payloads
@@ -377,7 +378,7 @@ Content-Type: application/json
         "items": ["Kubernetes cluster", "Monitoring stack"],
         "budget": "85000"
     },
-    "budget": 85000,
+    "budget": "85000",
     "items": ["Kubernetes cluster", "Monitoring stack"],
     "delivery_timeline": "Q2 2025",
     "payment_terms": "Net 30",
@@ -426,7 +427,11 @@ HTTP 200
     ],
     "delivery_timeline": "30 days",
     "payment_terms": "Net 30",
-    "warranty": "12 months"
+    "warranty": "12 months",
+    "description_raw": "Need 20 laptops (16GB RAM) and 15 monitors 27-inch. Budget 50000. Delivery 30 days. Net 30. Warranty 1 year.",
+    "description_structured": {
+        "summary": "Procure laptops and monitors with defined delivery timeline and payment terms"
+    }
 }
 ```
 
@@ -453,6 +458,25 @@ HTTP 200
 ```json
 HTTP 200
 { "success": true, "sentTo": 2 }
+```
+
+#### Parse Proposal Email — `POST /proposals/parse`
+
+```json
+{
+    "rawEmailText": "Hi Team, quoting $45,000 for the full hardware package with 25-day delivery and net 30 terms."
+}
+```
+
+```json
+HTTP 200
+{
+    "item_prices": [],
+    "total_cost": 45000,
+    "delivery_time": "25 days",
+    "terms": "Net 30",
+    "conditions": ""
+}
 ```
 
 Complete request/response schemas are documented in Swagger.
@@ -495,8 +519,8 @@ Prompts emphasize deterministic JSON output and explicit scoring rationale for p
 
 ## Known Limitations & Next Steps
 
-- `compareProposalsAi` queries table `proposals`; adjust to `proposal` to match schema before enabling in production.
-- IMAP callback currently logs emails only; integrate `parseVendorProposal` and ID resolution to store proposals.
+- `compareProposalsAi` assumes proposals exist for the target RFP; add guard rails or UX cues before exposing to end users.
+- IMAP callback currently logs emails only; integrate `parseProposal` and ID resolution to store proposals.
 - Frontend shell needs API integration to deliver a full UX.
 - Attachments and HTML-only emails are ignored; extend `email.imap.js` to handle multipart content.
 

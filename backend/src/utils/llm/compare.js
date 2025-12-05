@@ -2,7 +2,12 @@ const { createJsonCompletion } = require('./groqClient');
 const db = require('../../db');
 
 const compareProposalsAi = async (rfpId) => {
-  const rfpResult = await db.query('SELECT * FROM rfp WHERE id = $1', [rfpId]);
+  const numericId = Number(rfpId);
+  if (Number.isNaN(numericId)) {
+    throw new Error('rfpId must be a number');
+  }
+
+  const rfpResult = await db.query('SELECT * FROM rfp WHERE id = $1', [numericId]);
   const rfp = rfpResult.rows[0];
 
   if (!rfp) {
@@ -11,7 +16,7 @@ const compareProposalsAi = async (rfpId) => {
 
   const proposalResult = await db.query(
     'SELECT p.*, v.name AS vendor_name, v.email AS vendor_email FROM proposal p JOIN vendor v ON v.id = p.vendor_id WHERE p.rfp_id = $1 ORDER BY p.created_at ASC',
-    [rfpId]
+    [numericId]
   );
 
   const proposals = proposalResult.rows;
@@ -64,6 +69,10 @@ ${JSON.stringify(proposals)}
       comparison.scores[vendorKey] = 0;
     }
   });
+
+  comparison.recommendation = typeof comparison.recommendation === 'string'
+    ? comparison.recommendation
+    : '';
 
   return comparison;
 };
