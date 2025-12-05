@@ -1,31 +1,39 @@
-const axios = require('axios');
-const config = require('../../config/env');
-
+const { createJsonCompletion } = require('./groqClient');
 
 const generateStructuredRfp = async (rawText) => {
-  const prompt = `
-    Extract the following fields from the text below and return ONLY a valid JSON object:
-    - title (string)
-    - budget (number or string)
-    - items (array of strings)
-    - delivery_timeline (string)
-    - payment_terms (string)
-    - warranty (string)
+  if (!rawText || typeof rawText !== 'string') {
+    throw new Error('Input text is required to generate an RFP');
+  }
 
-    Text: "${rawText}"
-  `;
-
-  const response = await axios.post(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${config.LLM_API_KEY}`,
+  const messages = [
     {
-      contents: [{ parts: [{ text: prompt }] }],
-    }
-  );
+      role: 'system',
+      content: 'You are an assistant that converts freeform procurement requests into structured JSON RFP objects.',
+    },
+    {
+      role: 'user',
+      content: `Extract the following fields and return ONLY valid JSON with matching keys and sensible defaults when the information is missing.
 
-  const textResponse = response.data.candidates[0].content.parts[0].text;
-  const jsonString = textResponse.replace(/```json|```/g, '').trim();
+Fields:
+- title (string)
+- budget (string)
+- items (array of descriptive strings)
+- delivery_timeline (string)
+- payment_terms (string)
+- warranty (string)
 
-  return JSON.parse(jsonString);
+Raw request:
+${rawText}`,
+    },
+  ];
+
+  const response = await createJsonCompletion(messages, { maxTokens: 800 });
+
+  if (!Array.isArray(response.items)) {
+    response.items = []; // guarantee array output
+  }
+
+  return response;
 };
 
 module.exports = { generateStructuredRfp };

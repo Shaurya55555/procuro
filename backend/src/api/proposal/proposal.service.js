@@ -10,17 +10,29 @@ const createProposal = async (data) => {
   const values = [rfp_id, vendor_id, raw_email, parsed];
   
   const res = await db.query(text, values);
-  return res.rows[0];
+  const created = res.rows[0];
+  return getProposalById(created.id);
 };
 
 const getProposalsByRfpId = async (rfpId) => {
-  const text = 'SELECT * FROM proposal WHERE rfp_id = $1 ORDER BY created_at DESC';
+  const text = `
+    SELECT p.*, v.name AS vendor_name, v.email AS vendor_email
+    FROM proposal p
+    JOIN vendor v ON v.id = p.vendor_id
+    WHERE p.rfp_id = $1
+    ORDER BY p.created_at DESC
+  `;
   const res = await db.query(text, [rfpId]);
   return res.rows;
 };
 
 const getProposalById = async (id) => {
-  const text = 'SELECT * FROM proposal WHERE id = $1';
+  const text = `
+    SELECT p.*, v.name AS vendor_name, v.email AS vendor_email
+    FROM proposal p
+    JOIN vendor v ON v.id = p.vendor_id
+    WHERE p.id = $1
+  `;
   const res = await db.query(text, [id]);
   return res.rows[0];
 };

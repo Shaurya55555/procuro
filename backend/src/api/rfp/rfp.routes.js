@@ -1,14 +1,12 @@
 const express = require('express');
-const router = express.Router();
 const rfpController = require('./rfp.controller');
+
+const router = express.Router();
 
 router.post('/', rfpController.createRfp);
 router.get('/', rfpController.getAllRfps);
-router.get('/:id', rfpController.getRfpById);
-
-// FIXED HERE
 router.post('/from-text', rfpController.generateRfpFromText);
-
 router.get('/:id/compare', rfpController.compareProposals);
+router.get('/:id', rfpController.getRfpById);
 
 module.exports = router;

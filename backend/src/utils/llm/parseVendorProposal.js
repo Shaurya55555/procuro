@@ -1,32 +1,36 @@
-const axios = require('axios');
-const config = require('../../config/env');
-
+const { createJsonCompletion } = require('./groqClient');
 
 const parseVendorProposal = async (emailText) => {
-  const prompt = `
-    Analyze the following email proposal and extract these fields:
-    - item_prices (array of { item, price })
-    - total_cost
-    - delivery_time
-    - terms
-    - conditions
+  if (!emailText || typeof emailText !== 'string') {
+    throw new Error('Email body text is required to parse a proposal');
+  }
 
-    Email: "${emailText}"
-
-    Return ONLY valid JSON.
-  `;
-
-  const response = await axios.post(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${config.LLM_API_KEY}`,
+  const messages = [
     {
-      contents: [{ parts: [{ text: prompt }] }],
-    }
-  );
+      role: 'system',
+      content: 'You extract structured procurement proposal data from raw email text and respond with JSON only.',
+    },
+    {
+      role: 'user',
+      content: `From the following email, extract and return ONLY JSON with:
+- item_prices: array of { item: string, price: number }
+- total_cost: number
+- delivery_time: string
+- terms: string
+- conditions: string
 
-  const textResponse = response.data.candidates[0].content.parts[0].text;
-  const jsonString = textResponse.replace(/```json|```/g, '').trim();
+Email body:
+${emailText}`,
+    },
+  ];
 
-  return JSON.parse(jsonString);
+  const parsed = await createJsonCompletion(messages, { maxTokens: 800 });
+
+  if (!Array.isArray(parsed.item_prices)) {
+    parsed.item_prices = [];
+  }
+
+  return parsed;
 };
 
 module.exports = { parseVendorProposal };

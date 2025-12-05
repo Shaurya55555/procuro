@@ -1,21 +1,26 @@
 const { Pool } = require('pg');
 const config = require('../config/env');
+const logger = require('../utils/logger');
 
 const pool = new Pool({
   connectionString: config.DATABASE_URL,
 });
 
-// Test connection
-pool.query('SELECT 1')
-  .then(() => console.log('PostgreSQL connected successfully.'))
-  .catch(err => console.error('Database connection error:', err));
+pool
+  .query('SELECT 1')
+  .then(() => {
+    logger.info('PostgreSQL connected successfully');
+  })
+  .catch((error) => {
+    logger.error(`Database connection error: ${error.message}`);
+    throw error;
+  });
 
-// Handle unexpected PG socket errors
-pool.on('error', (err) => {
-  console.error('Unexpected PG client error:', err);
+pool.on('error', (error) => {
+  logger.error(`Unexpected PostgreSQL client error: ${error.message}`);
 });
 
 module.exports = {
   query: (text, params) => pool.query(text, params),
-  pool, // IMPORTANT: export pool too
+  pool,
 };

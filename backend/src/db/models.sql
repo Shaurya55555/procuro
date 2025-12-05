@@ -3,6 +3,7 @@ CREATE TABLE rfp (
   title TEXT,
   description_raw TEXT,
   description_structured JSONB,
+  items JSONB,
   budget NUMERIC,
   delivery_timeline TEXT,
   payment_terms TEXT,

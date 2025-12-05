@@ -9,12 +9,15 @@ const createRfp = async (data) => {
     items,
     delivery_timeline,
     payment_terms,
-    warranty
+    warranty,
   } = data;
 
-  if (!title) throw new Error("title is required");
-  if (!items || !Array.isArray(items)) {
-    throw new Error("items must be a non-empty array");
+  if (!title || typeof title !== 'string') {
+    throw new Error('title is required');
+  }
+
+  if (!Array.isArray(items) || items.length === 0) {
+    throw new Error('items must be a non-empty array');
   }
 
   const query = `
@@ -34,13 +37,13 @@ const createRfp = async (data) => {
 
   const values = [
     title,
-    description_raw || null,
-    description_structured || null,
-    budget || null,
-    items,                     // VALID ARRAY
-    delivery_timeline || null,
-    payment_terms || null,
-    warranty || null
+    description_raw ?? null,
+    description_structured ?? null,
+    budget ?? null,
+    items,
+    delivery_timeline ?? null,
+    payment_terms ?? null,
+    warranty ?? null,
   ];
 
   const result = await db.query(query, values);

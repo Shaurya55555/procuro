@@ -73,127 +73,397 @@ paths:
   /rfp/from-text:
     post:
       summary: Generate structured RFP from raw text (AI)
-      tags: [RFP, AI]
-      requestBody:
-        required: true
-        content:
-          application/json:
+      openapi: 3.0.3
+      info:
+        title: Procuro API
+        version: 1.0.0
+        description: REST API for the Procuro single-user procurement assistant.
+
+      servers:
+        - url: http://localhost:5000
+
+      paths:
+        /rfp:
+          post:
+            summary: Create an RFP
+            tags: [RFP]
+            requestBody:
+              required: true
+              content:
+                application/json:
+                  schema:
+                    $ref: '#/components/schemas/RfpInput'
+            responses:
+              '201':
+                description: RFP created
+                content:
+                  application/json:
+                    schema:
+                      $ref: '#/components/schemas/Rfp'
+              '400':
+                $ref: '#/components/responses/BadRequest'
+          get:
+            summary: List all RFPs
+            tags: [RFP]
+            responses:
+              '200':
+                description: List of RFPs
+                content:
+                  application/json:
+                    schema:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/Rfp'
+              '400':
+                $ref: '#/components/responses/BadRequest'
+
+        /rfp/from-text:
+          post:
+            summary: Generate structured RFP from raw text using Groq
+            tags: [RFP]
+            requestBody:
+              required: true
+              content:
+                application/json:
+                  schema:
+                    type: object
+                    required: [text]
+                    properties:
+                      text:
+                        type: string
+                        description: Natural language procurement request
+            responses:
+              '200':
+                description: Structured RFP JSON
+                content:
+                  application/json:
+                    schema:
+                      $ref: '#/components/schemas/StructuredRfp'
+              '400':
+                $ref: '#/components/responses/BadRequest'
+
+        /rfp/{id}:
+          get:
+            summary: Get an RFP by ID
+            tags: [RFP]
+            parameters:
+              - $ref: '#/components/parameters/RfpId'
+            responses:
+              '200':
+                description: RFP details
+                content:
+                  application/json:
+                    schema:
+                      $ref: '#/components/schemas/Rfp'
+              '400':
+                $ref: '#/components/responses/BadRequest'
+              '404':
+                $ref: '#/components/responses/NotFound'
+
+        /rfp/{id}/compare:
+          get:
+            summary: Compare proposals for an RFP using Groq
+            tags: [RFP]
+            parameters:
+              - $ref: '#/components/parameters/RfpId'
+            responses:
+              '200':
+                description: AI-generated comparison
+                content:
+                  application/json:
+                    schema:
+                      $ref: '#/components/schemas/CompareResponse'
+              '400':
+                $ref: '#/components/responses/BadRequest'
+              '404':
+                $ref: '#/components/responses/NotFound'
+
+        /vendors:
+          post:
+            summary: Create a vendor
+            tags: [Vendors]
+            requestBody:
+              required: true
+              content:
+                application/json:
+                  schema:
+                    $ref: '#/components/schemas/VendorInput'
+            responses:
+              '201':
+                description: Vendor created
+                content:
+                  application/json:
+                    schema:
+                      $ref: '#/components/schemas/Vendor'
+              '400':
+                $ref: '#/components/responses/BadRequest'
+          get:
+            summary: List all vendors
+            tags: [Vendors]
+            responses:
+              '200':
+                description: Vendor list
+                content:
+                  application/json:
+                    schema:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/Vendor'
+              '400':
+                $ref: '#/components/responses/BadRequest'
+
+        /proposals:
+          post:
+            summary: Create a proposal
+            tags: [Proposals]
+            requestBody:
+              required: true
+              content:
+                application/json:
+                  schema:
+                    $ref: '#/components/schemas/ProposalInput'
+            responses:
+              '201':
+                description: Proposal created
+                content:
+                  application/json:
+                    schema:
+                      $ref: '#/components/schemas/Proposal'
+              '400':
+                $ref: '#/components/responses/BadRequest'
+
+        /proposals/{id}:
+          get:
+            summary: Get proposal by ID
+            tags: [Proposals]
+            parameters:
+              - name: id
+                in: path
+                required: true
+                schema:
+                  type: integer
+            responses:
+              '200':
+                description: Proposal details
+                content:
+                  application/json:
+                    schema:
+                      $ref: '#/components/schemas/Proposal'
+              '400':
+                $ref: '#/components/responses/BadRequest'
+              '404':
+                $ref: '#/components/responses/NotFound'
+
+        /proposals/rfp/{rfpId}:
+          get:
+            summary: List proposals for an RFP
+            tags: [Proposals]
+            parameters:
+              - $ref: '#/components/parameters/RfpId'
+            responses:
+              '200':
+                description: Proposal list
+                content:
+                  application/json:
+                    schema:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/Proposal'
+              '400':
+                $ref: '#/components/responses/BadRequest'
+
+        /email/send:
+          post:
+            summary: Send an RFP to selected vendors via email
+            tags: [Email]
+            requestBody:
+              required: true
+              content:
+                application/json:
+                  schema:
+                    $ref: '#/components/schemas/EmailSendRequest'
+            responses:
+              '200':
+                description: Email dispatch result
+                content:
+                  application/json:
+                    schema:
+                      type: object
+                      properties:
+                        success:
+                          type: boolean
+                        sentTo:
+                          type: integer
+              '400':
+                $ref: '#/components/responses/BadRequest'
+
+      components:
+        parameters:
+          RfpId:
+            name: id
+            in: path
+            required: true
             schema:
-              type: object
-              properties:
-                rawText:
-                  type: string
-      responses:
-        200:
-          description: Structured RFP generated
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/StructuredRfp'
-        400:
-          description: Invalid text
+              type: integer
 
+        responses:
+          BadRequest:
+            description: Invalid request
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/ErrorResponse'
+          NotFound:
+            description: Resource not found
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/ErrorResponse'
 
-  /rfp/{id}/compare:
-    get:
-      summary: Compare proposals for an RFP (AI)
-      tags: [RFP, AI]
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: integer
-      responses:
-        200:
-          description: Comparison result
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ComparisonResult'
-        404:
-          description: RFP not found
+        schemas:
+          ErrorResponse:
+            type: object
+            properties:
+              error:
+                type: string
 
-
-  ############################
-  # VENDOR ROUTES
-  ############################
-
-  /vendors:
-    post:
-      summary: Create a vendor
-      tags: [Vendor]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/VendorInput'
-      responses:
-        201:
-          description: Vendor created
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Vendor'
-    get:
-      summary: List all vendors
-      tags: [Vendor]
-      responses:
-        200:
-          description: Vendor list
-          content:
-            application/json:
-              schema:
+          RfpInput:
+            type: object
+            required: [title, items]
+            properties:
+              title:
+                type: string
+              description_raw:
+                type: string
+              description_structured:
+                type: object
+              items:
                 type: array
                 items:
-                  $ref: '#/components/schemas/Vendor'
+                  type: string
+              budget:
+                type: number
+                nullable: true
+              delivery_timeline:
+                type: string
+                nullable: true
+              payment_terms:
+                type: string
+                nullable: true
+              warranty:
+                type: string
+                nullable: true
 
-  ############################
-  # PROPOSAL ROUTES
-  ############################
+          StructuredRfp:
+            type: object
+            properties:
+              title:
+                type: string
+              budget:
+                type: string
+              items:
+                type: array
+                items:
+                  type: string
+              delivery_timeline:
+                type: string
+              payment_terms:
+                type: string
+              warranty:
+                type: string
 
-  /proposals:
-    post:
-      summary: Create a proposal
-      tags: [Proposal]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ProposalInput'
-      responses:
-        201:
-          description: Proposal created
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Proposal'
+          Rfp:
+            allOf:
+              - $ref: '#/components/schemas/RfpInput'
+              - type: object
+                properties:
+                  id:
+                    type: integer
+                  description_structured:
+                    type: object
+                    nullable: true
+                  items:
+                    type: array
+                    items:
+                      type: string
+                  created_at:
+                    type: string
+                    format: date-time
 
-  /proposals/{id}:
-    get:
-      summary: Get a proposal by ID
-      tags: [Proposal]
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: integer
-      responses:
-        200:
-          description: Proposal details
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Proposal'
-        404:
-          description: Proposal not found
+          VendorInput:
+            type: object
+            required: [name, email]
+            properties:
+              name:
+                type: string
+              email:
+                type: string
+                format: email
 
-  /proposals/rfp/{rfpId}:
-    get:
-      summary: List proposals for an RFP
+          Vendor:
+            allOf:
+              - $ref: '#/components/schemas/VendorInput'
+              - type: object
+                properties:
+                  id:
+                    type: integer
+
+          ProposalInput:
+            type: object
+            required: [rfp_id, vendor_id]
+            properties:
+              rfp_id:
+                type: integer
+              vendor_id:
+                type: integer
+              raw_email:
+                type: string
+                nullable: true
+              parsed:
+                type: object
+                nullable: true
+
+          Proposal:
+            allOf:
+              - $ref: '#/components/schemas/ProposalInput'
+              - type: object
+                properties:
+                  id:
+                    type: integer
+                  created_at:
+                    type: string
+                    format: date-time
+                  vendor_name:
+                    type: string
+                    nullable: true
+                  vendor_email:
+                    type: string
+                    nullable: true
+
+          CompareResponse:
+            type: object
+            properties:
+              ranking:
+                type: array
+                items:
+                  type: string
+              scores:
+                type: object
+                additionalProperties:
+                  type: number
+              recommendation:
+                type: string
+
+          EmailSendRequest:
+            type: object
+            required: [rfpId, vendorIds]
+            properties:
+              rfpId:
+                type: integer
+              vendorIds:
+                type: array
+                items:
+                  type: integer
       tags: [Proposal]
       parameters:
         - in: path
