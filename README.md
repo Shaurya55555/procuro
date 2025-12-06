@@ -302,8 +302,16 @@ LLM_API_KEY=gsk_your_groq_api_key
 *(Placeholder for application screenshots)*
 
 *   **Dashboard View:** Overview of active RFPs.
+![WhatsApp Image 2025-12-06 at 2 38 42 PM](https://github.com/user-attachments/assets/c9aee557-ca30-412c-9f18-08222b4bdd39)
+
+  
 *   **RFP Creation:** AI-assisted form for generating requirements.
+  ![WhatsApp Image 2025-12-06 at 2 39 05 PM](https://github.com/user-attachments/assets/2769edf9-553d-463c-96c1-3c11f65d3995)
+
 *   **Comparison Matrix:** Side-by-side view of vendor proposals.
+
+  ![WhatsApp Image 2025-12-06 at 2 39 58 PM](https://github.com/user-attachments/assets/a2fdbce7-688b-4bd4-8f18-3ae6a8a42935)
+
 
 ---
 
