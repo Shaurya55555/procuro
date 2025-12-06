@@ -1,532 +1,321 @@
-# Procuro – Backend Documentation
+# Procuro – AI-Powered RFP Management System
 
-AI-powered Request for Proposal (RFP) management backend that transforms natural language purchase requests into structured RFPs, emails vendors, ingests replies over IMAP, and compares proposals using Groq's llama-3.1-70b-versatile model. This README consolidates the full assignment deliverable with architecture diagrams, setup steps, and endpoint references. The React frontend scaffold in `frontend/` is optional and incomplete; evaluating the backend alone satisfies the submission.
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
+![Node.js](https://img.shields.io/badge/node-%3E%3D%2018.0.0-green)
+![React](https://img.shields.io/badge/react-18.2.0-blue)
+![PostgreSQL](https://img.shields.io/badge/postgresql-15-blue)
 
----
-
-## Table of Contents
-
-1. [Repository Layout](#repository-layout)
-2. [Architecture](#architecture)
-     - [High-Level Diagram](#high-level-diagram)
-     - [Data Flow](#data-flow)
-     - [Low-Level Design](#low-level-design)
-3. [Tech Stack](#tech-stack)
-4. [Assumptions & Key Decisions](#assumptions--key-decisions)
-5. [Environment Variables](#environment-variables)
-6. [Project Setup](#project-setup)
-     - [Backend](#backend)
-     - [Frontend (Optional Shell)](#frontend-optional-shell)
-     - [Email Configuration](#email-configuration)
-     - [Seed Data](#seed-data)
-7. [Database Schema](#database-schema)
-8. [AI Modules](#ai-modules)
-9. [IMAP Email Ingestion](#imap-email-ingestion)
-10. [API Documentation](#api-documentation)
-11. [Error Handling](#error-handling)
-12. [Swagger Documentation](#swagger-documentation)
-13. [AI Tools Usage During Development](#ai-tools-usage-during-development)
-14. [Demo Video](#demo-video)
-15. [Known Limitations & Next Steps](#known-limitations--next-steps)
+**Procuro** is an intelligent Request for Proposal (RFP) management system designed to streamline the procurement process. By leveraging Generative AI (Groq/Llama-3), Procuro automates the extraction of structured data from unstructured RFP documents and vendor proposals, enabling automated comparison and analysis.
 
 ---
 
-## Repository Layout
+## 📋 Project Overview
 
-```
-procuro/
-    backend/
-        src/
-            api/
-                rfp/
-                vendor/
-                proposal/
-                email/
-            utils/
-                llm/
-            db/
-            config/
-            app.js
-            server.js
-            swagger.yml
-        package.json
-        README.md (backend focused)
-    frontend/
-        src/
-            api/
-            components/
-            pages/
-        package.json
-    README.md (this file)
-```
+Procuro solves the manual overhead of managing procurement cycles. It allows organizations to create RFPs, automatically ingest vendor proposals via email, parse them into structured formats using AI, and generate side-by-side comparisons to identify the best bids.
+
+### Key Features
+
+*   **🤖 AI-Driven Parsing:** Automatically converts unstructured text descriptions into structured RFP requirements using Large Language Models (Groq).
+*   **📧 Email Integration:** Monitors a dedicated email inbox for vendor proposals and automatically links them to the corresponding RFP.
+*   **📊 Automated Comparison:** Intelligently compares vendor proposals against RFP requirements, highlighting discrepancies in budget, timeline, and specs.
+*   **📝 RFP Management:** Create, view, and manage RFPs with detailed itemized lists and terms.
+*   **👥 Vendor Management:** Maintain a registry of vendors and track their submissions.
 
 ---
 
-## Architecture
+## 🏗️ High Level Architecture (HLD)
 
-### High-Level Diagram
+The system follows a modern client-server architecture. The React frontend communicates with a Node.js/Express backend. The backend orchestrates data flow between the PostgreSQL database, the Groq AI inference engine, and the Email servers (IMAP/SMTP).
 
 ```mermaid
-graph LR
-    Browser[User Browser] -- REST --> API[Express Backend]
-    API -- SQL --> PG[(PostgreSQL)]
-    API -- SMTP --> SMTP[SMTP Server]
-    API -- IMAP IDLE --> IMAP[IMAP Mailbox]
-    API -- HTTPS --> GroqLLM[Groq LPU Cloud]
+graph TD
+    Client[React Frontend] <-->|REST API| Server[Node.js Backend]
+    
+    subgraph Backend Services
+        Server <-->|SQL| DB[(PostgreSQL)]
+        Server <-->|Inference| AI[Groq AI API]
+        Server <-->|IMAP/SMTP| Email[Email Server]
+    end
 ```
 
-### Data Flow
+---
 
+## 🔧 Low Level Design (LLD) & Module Breakdown
+
+The backend is structured using a modular service-oriented pattern to ensure separation of concerns.
+
+### Core Modules
+
+1.  **RFP Module** (`src/api/rfp`)
+    *   **Controller:** Handles HTTP requests for creating and retrieving RFPs.
+    *   **Service:** Business logic for RFP validation and storage.
+    *   **Model:** Database interactions for the `rfp` table.
+
+2.  **Proposal Module** (`src/api/proposal`)
+    *   **Service:** Handles the logic of linking a proposal to an RFP.
+    *   **Parser:** Uses AI to extract budget, timeline, and line items from raw proposal text.
+
+3.  **AI Module** (`src/api/ai`)
+    *   **Groq Client:** Wrapper around the Groq SDK.
+    *   **Prompt Engineering:** Specialized prompts for parsing RFPs, parsing proposals, and generating comparisons.
+
+4.  **Email Module** (`src/api/email`)
+    *   **IMAP Listener:** Background job that polls for new emails.
+    *   **SMTP Service:** Handles sending acknowledgments or notifications to vendors.
+
+---
+
+## 🗄️ Database Schema
+
+The database is normalized to support the relationship between RFPs, Vendors, and Proposals.
+
+```mermaid
+erDiagram
+    RFP ||--o{ PROPOSAL : receives
+    VENDOR ||--o{ PROPOSAL : submits
+    
+    RFP {
+        int id PK
+        string title
+        text description_raw
+        jsonb description_structured
+        jsonb items
+        string budget
+        string delivery_timeline
+        timestamp created_at
+    }
+
+    VENDOR {
+        int id PK
+        string name
+        string email
+    }
+
+    PROPOSAL {
+        int id PK
+        int rfp_id FK
+        int vendor_id FK
+        text raw_email
+        jsonb parsed
+        timestamp created_at
+    }
+```
+
+---
+
+## 🔄 System Data Flow
+
+### 1. RFP Creation Flow
 ```mermaid
 sequenceDiagram
-    participant User as Procurement Manager
-    participant API as Express API
-    participant DB as PostgreSQL
-    participant SMTP as SMTP Server
-    participant IMAP as IMAP Mailbox
-    participant LLM as Groq LLM
-
-    User->>API: POST /rfp (natural-language payload)
-    API->>LLM: Generate structured RFP
-    LLM-->>API: Structured JSON
-    API->>DB: Insert RFP
-    User->>API: POST /email/send (rfpId + vendorIds)
-    API->>DB: Fetch vendors & RFP
-    API->>SMTP: Send email per vendor
-    Vendor->>IMAP: Reply with proposal email
-    API->>IMAP: Poll unseen mail (startImapListener)
-    IMAP-->>API: New message
-    API->>LLM: Parse vendor proposal
-    LLM-->>API: Structured proposal JSON
-    API->>DB: Insert proposal record
-    User->>API: GET /rfp/:id/compare
-    API->>DB: Load RFP + proposals
-    API->>LLM: Compare proposals
-    LLM-->>API: Ranking, scores, recommendation
-    API-->>User: AI-assisted comparison
+    User->>Frontend: Enters RFP Details (Text)
+    Frontend->>Backend: POST /rfp/from-text
+    Backend->>AI Service: Parse Requirements
+    AI Service-->>Backend: Structured JSON
+    Backend->>Database: Save RFP
+    Backend-->>Frontend: Return Created RFP
 ```
 
-### Low-Level Design
-
+### 2. Proposal Ingestion Flow
 ```mermaid
-classDiagram
-    class App {
-        +express.json()
-        +cors()
-        +/docs (Swagger)
-        +/rfp, /vendors, /proposals, /email routes
-    }
-    class RfpController {
-        +createRfp(req,res)
-        +getAllRfps(req,res)
-        +getRfpById(req,res)
-        +generateRfpFromText(req,res)
-        +compareProposals(req,res)
-    }
-    class RfpService {
-        +createRfp(data)
-        +getRfpById(id)
-        +getAllRfps()
-    }
-    class VendorService {
-        +createVendor(data)
-        +getAllVendors()
-    }
-    class ProposalService {
-        +createProposal(data)
-        +getProposalById(id)
-        +getProposalsByRfpId(rfpId)
-    }
-    class EmailController {
-        +sendRfpEmail(req,res)
-    }
-    class ImapListener {
-        +startImapListener(callback)
-    }
-    class LlmHelpers {
-        +generateStructuredRfp(rawText)
-        +compareProposalsAi(rfpId)
-        +parseProposal(rawEmailText)
-    }
-    RfpController --> RfpService
-    RfpController --> LlmHelpers
-    ProposalService --> LlmHelpers
-    EmailController --> RfpService
-    EmailController --> VendorService
-    ImapListener --> LlmHelpers
-    RfpService --> DB[(pg Pool)]
-    VendorService --> DB
-    ProposalService --> DB
+sequenceDiagram
+    Vendor->>Email Server: Sends Proposal Email
+    Backend->>Email Server: IMAP Poll (Check New Mail)
+    Email Server-->>Backend: New Email Content
+    Backend->>AI Service: Parse Proposal vs RFP
+    AI Service-->>Backend: Structured Proposal Data
+    Backend->>Database: Save Proposal (Linked to RFP)
 ```
 
 ---
 
-## Tech Stack
+## 📂 Folder Structure
 
-| Layer | Technology | Notes |
-|-------|------------|-------|
-| Backend | Node.js 18+, Express 4 | REST API, routing, middleware |
-| Database | PostgreSQL + `pg` | Connection pool with basic health logging |
-| Email Sending | Nodemailer | Authenticated SMTP (TLS on port 465 assumed) |
-| Email Ingestion | ImapFlow | Robust IMAP client with idle reconnect logic |
-| AI Provider | Groq llama-3.1-70b-versatile | JSON extraction for RFP creation, proposal parsing, comparison |
-| API Docs | Swagger UI | Served from `/docs`, spec in `backend/src/swagger.yml` |
-| Frontend (scaffold) | React + Vite | Present but minimal; not required for backend evaluation |
-
----
-
-## Assumptions & Key Decisions
-
-- **Single user workflow**: No authentication or multi-tenant logic required by the brief.
-- **Structured storage**: Persist Groq responses in JSONB alongside human-readable fields for analytics.
-- **Proposal intake**: IMAP callback currently logs new emails; storage integration example provided for extensibility.
-- **Strict JSON contracts**: AI helpers enforce JSON-only responses to avoid brittle parsing.
-- **Comparison guardrails**: Comparison endpoint fails fast when no proposals exist, preventing misleading output.
-- **Frontend optionality**: Backend can be evaluated and demoed without completing the React client.
-
----
-
-## Environment Variables
-
-Create `backend/.env` from `backend/.env.example`.
-
-| Variable | Description |
-|----------|-------------|
-| `DATABASE_URL` | PostgreSQL connection string (e.g. `postgres://user:pass@localhost:5432/procuro`) |
-| `SMTP_HOST` | SMTP hostname for outgoing mail |
-| `SMTP_PORT` | SMTP port (465 recommended for implicit TLS) |
-| `SMTP_USER` / `SMTP_PASS` | SMTP credentials |
-| `IMAP_HOST` / `IMAP_PORT` | IMAP hostname & port (993 recommended) |
-| `IMAP_USER` / `IMAP_PASS` | IMAP credentials |
-| `LLM_API_KEY` | Groq API key consumed by all AI helpers |
-| `PORT` | Express listen port (defaults to `3000`) |
-
-`src/config/env.js` validates presence and parses integer fields before exporting configuration.
+```bash
+procuro/
+├── backend/
+│   ├── src/
+│   │   ├── api/            # Route controllers and services
+│   │   │   ├── ai/         # AI logic (Groq integration)
+│   │   │   ├── email/      # Email handling (IMAP/SMTP)
+│   │   │   ├── proposal/   # Proposal logic
+│   │   │   ├── rfp/        # RFP logic
+│   │   │   └── vendor/     # Vendor logic
+│   │   ├── config/         # Environment config
+│   │   ├── db/             # Database connection & models
+│   │   ├── utils/          # Helper functions
+│   │   ├── app.js          # Express app setup
+│   │   └── server.js       # Entry point
+│   ├── package.json
+│   └── README.md
+├── frontend/
+│   ├── src/
+│   │   ├── api/            # Axios client
+│   │   ├── components/     # Reusable UI components
+│   │   ├── pages/          # Main application pages
+│   │   └── App.jsx         # Root component
+│   ├── package.json
+│   └── vite.config.js
+├── docker-compose.yml
+└── README.md
+```
 
 ---
 
-## Project Setup
+## 🛠️ Tech Stack
+
+### Frontend
+*   **Framework:** React (Vite)
+*   **Styling:** CSS / Tailwind (if applicable)
+*   **Icons:** Lucide React
+*   **HTTP Client:** Axios
+*   **Routing:** React Router DOM
 
 ### Backend
+*   **Runtime:** Node.js
+*   **Framework:** Express.js
+*   **Database:** PostgreSQL (`pg`)
+*   **AI/LLM:** Groq SDK (`llama-3.3-70b-versatile`)
+*   **Email:** Nodemailer (SMTP), ImapFlow (IMAP)
+*   **Documentation:** Swagger UI
 
-```bash
-cd backend
+---
 
-# install dependencies
-npm install
+## 📖 API Documentation
 
-# configure environment
-cp .env.example .env
-# edit .env with database, SMTP, IMAP, and Groq credentials
+### RFP Routes
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `POST` | `/rfp` | Create a new RFP manually |
+| `GET` | `/rfp` | List all RFPs |
+| `GET` | `/rfp/:id` | Get details of a specific RFP |
+| `POST` | `/rfp/from-text` | Generate an RFP structure from raw text using AI |
+| `GET` | `/rfp/:id/compare` | Compare all proposals for a specific RFP |
 
-# provision schema
-psql "$DATABASE_URL" -f src/db/models.sql
+### Vendor Routes
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `POST` | `/vendors` | Register a new vendor |
+| `GET` | `/vendors` | List all registered vendors |
 
-# run server
-npm run dev   # nodemon
-# or
-npm start     # node src/server.js
+### Proposal Routes
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `POST` | `/proposals` | Manually submit a proposal |
+| `POST` | `/proposals/parse` | Parse a raw proposal text using AI |
+| `GET` | `/proposals/rfp/:rfpId` | Get all proposals for a specific RFP |
+| `GET` | `/proposals/:id` | Get details of a specific proposal |
 
-# API base URL (default): http://localhost:5000
-# Swagger UI: http://localhost:5000/docs
-```
+### Email Routes
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `POST` | `/email/send` | Send an email (e.g., to a vendor) |
 
-Server boot triggers IMAP listener startup; failures are logged and retried with five-second backoff.
+---
 
-### Frontend (Optional Shell)
+## 🚀 How to Run the Project Locally
 
-```bash
-cd frontend
-npm install
-npm run dev
-```
+### Prerequisites
+*   Node.js (v18+)
+*   PostgreSQL
+*   Groq API Key
 
-The React app provides skeleton pages (`RfpCreate`, `Proposals`, `Vendors`) and Axios client; wiring to the backend is a future enhancement.
+### 1. Backend Setup
 
-### Email Configuration
+1.  Navigate to the backend directory:
+    ```bash
+    cd backend
+    ```
+2.  Install dependencies:
+    ```bash
+    npm install
+    ```
+3.  Set up environment variables (see below).
+4.  Initialize the database:
+    *   Create a PostgreSQL database.
+    *   Run the SQL scripts in `src/db/models.sql`.
+5.  Start the server:
+    ```bash
+    npm run dev
+    ```
 
-- Use the same mailbox for SMTP sender and IMAP listener to simplify threading.
-- Ensure the account permits programmatic IMAP access and exposes the `INBOX` folder.
-- TLS is assumed for both SMTP (465) and IMAP (993); adjust env vars if plaintext is required.
+### 2. Frontend Setup
 
-### Seed Data
+1.  Navigate to the frontend directory:
+    ```bash
+    cd frontend
+    ```
+2.  Install dependencies:
+    ```bash
+    npm install
+    ```
+3.  Start the development server:
+    ```bash
+    npm run dev
+    ```
 
-Use `src/db/models.sql` to create tables. Seed RFPs/vendors via API calls or direct SQL inserts. Example SQL snippet:
+### 3. Environment Variables
 
-```sql
-INSERT INTO vendor (name, email)
-VALUES ('Acme Supplies', 'sales@acme.example');
+Create a `.env` file in the root (or `backend/`) with the following:
 
-INSERT INTO rfp (title, description_raw, description_structured, items)
-VALUES (
-    'Office Network Refresh',
-    'Upgrade switching, add redundant firewall, PoE for cameras.',
-    '{"items":["Core switches","Firewall failover"],"budget":"45000"}',
-    '{"items":["Core switches","Firewall failover"]}'
-);
+```env
+PORT=3000
+DATABASE_URL=postgresql://user:password@localhost:5432/procuro_db
+
+# Email Configuration
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_USER=your_email@example.com
+SMTP_PASS=your_password
+IMAP_HOST=imap.example.com
+IMAP_PORT=993
+IMAP_USER=your_email@example.com
+IMAP_PASS=your_password
+
+# AI Configuration
+LLM_API_KEY=gsk_your_groq_api_key
 ```
 
 ---
 
-## Database Schema
+## ☁️ Deployment Guide
 
-```sql
-CREATE TABLE rfp (
-    id SERIAL PRIMARY KEY,
-    title TEXT,
-    description_raw TEXT,
-    description_structured JSONB,
-    budget NUMERIC,
-    delivery_timeline TEXT,
-    payment_terms TEXT,
-    warranty TEXT,
-    created_at TIMESTAMP DEFAULT NOW()
-);
+### Backend (Render)
+1.  Create a new **Web Service** on Render.
+2.  Connect your repository.
+3.  Set the **Root Directory** to `backend`.
+4.  Set the **Build Command** to `npm install`.
+5.  Set the **Start Command** to `node src/server.js`.
+6.  Add all environment variables in the Render dashboard.
 
-CREATE TABLE vendor (
-    id SERIAL PRIMARY KEY,
-    name TEXT,
-    email TEXT
-);
-
-CREATE TABLE proposal (
-    id SERIAL PRIMARY KEY,
-    rfp_id INTEGER REFERENCES rfp(id),
-    vendor_id INTEGER REFERENCES vendor(id),
-    raw_email TEXT,
-    parsed JSONB,
-    created_at TIMESTAMP DEFAULT NOW()
-);
-```
-
-- `rfp.service.js` ensures `title` and `items` (array) are present.
-- Proposals store raw email plus AI-parsed summary for auditability.
+### Frontend (Netlify/Vercel)
+1.  Create a new site on Netlify or Vercel.
+2.  Connect your repository.
+3.  Set the **Base Directory** to `frontend`.
+4.  Set the **Build Command** to `npm run build`.
+5.  Set the **Publish Directory** to `dist`.
 
 ---
 
-## AI Modules
+## 📸 Screenshots
 
-| File | Responsibility | Invoked By |
-|------|----------------|------------|
-| `src/utils/llm/generateRfp.js` | Convert natural language into structured RFP JSON | `POST /rfp/from-text` |
-| `src/utils/llm/compare.js` | Rank proposals and return justification | `GET /rfp/:id/compare` |
-| `src/utils/llm/parseProposal.js` | Normalize vendor email content | `POST /proposals/parse` and IMAP callback |
+*(Placeholder for application screenshots)*
 
-All helpers trim Markdown fences and parse Groq JSON responses; malformed payloads bubble as `400 {"error": "..."}`.
+*   **Dashboard View:** Overview of active RFPs.
+*   **RFP Creation:** AI-assisted form for generating requirements.
+*   **Comparison Matrix:** Side-by-side view of vendor proposals.
 
 ---
 
-## IMAP Email Ingestion
+## 🔮 Future Enhancements
 
-`src/api/email/email.imap.js` encapsulates ImapFlow lifecycle management:
-
-- Single connection with guarded reconnects to avoid flapping.
-- Mailbox lock ensures exclusive access while fetching unseen mail.
-- Deduplication via `fetchInFlight` prevents overlapping fetch cycles.
-- Consumer callback receives `{ subject, body }`. Extend to parse and persist proposals.
-
-Integration sketch:
-
-```js
-const { parseProposal } = require('../utils/llm/parseProposal');
-const proposalService = require('../api/proposal/proposal.service');
-
-startImapListener(async ({ body }) => {
-    const parsed = await parseProposal(body);
-    await proposalService.createProposal({
-        rfp_id: resolveRfpId(body),
-        vendor_id: resolveVendorId(body),
-        raw_email: body,
-        parsed,
-    });
-});
-```
-
-Mapping helper functions (`resolveRfpId`, `resolveVendorId`) depend on your email formatting strategy.
+*   **Authentication:** Add JWT-based user authentication and role-based access control (RBAC).
+*   **Document Upload:** Support parsing of PDF/Word documents for RFPs and Proposals.
+*   **Real-time Notifications:** WebSockets for instant updates when a new proposal arrives.
+*   **Analytics Dashboard:** Visual insights into spending and vendor performance.
 
 ---
 
-## API Documentation
+## 📄 License
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `POST` | `/rfp` | Create a structured RFP record |
-| `GET` | `/rfp` | List all RFPs (descending `id`) |
-| `GET` | `/rfp/{id}` | Retrieve RFP by ID |
-| `POST` | `/rfp/from-text` | Generate structured RFP from raw text |
-| `GET` | `/rfp/{id}/compare` | AI comparison of stored proposals |
-| `POST` | `/vendors` | Create vendor entry |
-| `GET` | `/vendors` | List vendors |
-| `POST` | `/proposals` | Persist proposal (raw + parsed) |
-| `GET` | `/proposals/{id}` | Retrieve proposal |
-| `GET` | `/proposals/rfp/{rfpId}` | List proposals for an RFP |
-| `POST` | `/proposals/parse` | Normalize raw vendor email into structured JSON |
-| `POST` | `/email/send` | Broadcast RFP to selected vendors via SMTP |
-
-### Sample Payloads
-
-#### Create RFP — `POST /rfp`
-
-```http
-POST /rfp
-Content-Type: application/json
-
-{
-    "title": "Cloud Infrastructure Upgrade",
-    "description_raw": "We need redundant Kubernetes clusters...",
-    "description_structured": {
-        "items": ["Kubernetes cluster", "Monitoring stack"],
-        "budget": "85000"
-    },
-    "budget": "85000",
-    "items": ["Kubernetes cluster", "Monitoring stack"],
-    "delivery_timeline": "Q2 2025",
-    "payment_terms": "Net 30",
-    "warranty": "12 months"
-}
-```
-
-```json
-HTTP 201
-{
-    "id": 1,
-    "title": "Cloud Infrastructure Upgrade",
-    "description_raw": "We need redundant Kubernetes clusters...",
-    "description_structured": {
-        "items": ["Kubernetes cluster", "Monitoring stack"],
-        "budget": "85000"
-    },
-    "budget": "85000",
-    "items": [
-        "Kubernetes cluster",
-        "Monitoring stack"
-    ],
-    "delivery_timeline": "Q2 2025",
-    "payment_terms": "Net 30",
-    "warranty": "12 months",
-    "created_at": "2025-12-04T10:15:30.123Z"
-}
-```
-
-#### Generate RFP from Text — `POST /rfp/from-text`
-
-```json
-{
-    "text": "Need 20 laptops (16GB RAM) and 15 monitors 27-inch. Budget 50000. Delivery 30 days. Net 30. Warranty 1 year."
-}
-```
-
-```json
-HTTP 200
-{
-    "title": "Laptop and Monitor Procurement",
-    "budget": "50000",
-    "items": [
-        "20 laptops with 16GB RAM",
-        "15 27-inch monitors"
-    ],
-    "delivery_timeline": "30 days",
-    "payment_terms": "Net 30",
-    "warranty": "12 months",
-    "description_raw": "Need 20 laptops (16GB RAM) and 15 monitors 27-inch. Budget 50000. Delivery 30 days. Net 30. Warranty 1 year.",
-    "description_structured": {
-        "summary": "Procure laptops and monitors with defined delivery timeline and payment terms"
-    }
-}
-```
-
-#### Compare Proposals — `GET /rfp/{id}/compare`
-
-```json
-HTTP 200
-{
-    "ranking": ["3", "1", "2"],
-    "scores": { "3": 92, "1": 78, "2": 65 },
-    "recommendation": "Vendor 3 best aligns with delivery timeline and budget constraints."
-}
-```
-
-#### Send RFP Email — `POST /email/send`
-
-```json
-{
-    "rfpId": 1,
-    "vendorIds": [2, 3]
-}
-```
-
-```json
-HTTP 200
-{ "success": true, "sentTo": 2 }
-```
-
-#### Parse Proposal Email — `POST /proposals/parse`
-
-```json
-{
-    "rawEmailText": "Hi Team, quoting $45,000 for the full hardware package with 25-day delivery and net 30 terms."
-}
-```
-
-```json
-HTTP 200
-{
-    "item_prices": [],
-    "total_cost": 45000,
-    "delivery_time": "25 days",
-    "terms": "Net 30",
-    "conditions": ""
-}
-```
-
-Complete request/response schemas are documented in Swagger.
-
----
-
-## Error Handling
-
-- Controllers return `400 {"error": "..."}` for validation issues and `404` when entities are missing.
-- Service-layer errors bubble up with descriptive messages; no generic `500` masking.
-- IMAP listener logs issues via `src/utils/logger.js` and schedules reconnects instead of crashing the process.
-- Startup aborts if env validation or initial database connectivity fails, ensuring misconfiguration is visible.
-
----
-
-## Swagger Documentation
-
-- Specification lives at `backend/src/swagger.yml`.
-- Swagger UI hosted at `http://localhost:5000/docs`.
-- Supports Try-It-Out calls against the running development server.
-
----
-
-## AI Tools Usage During Development
-
-| Tool | Usage |
-|------|-------|
-| GitHub Copilot (GPT-5-Codex) | Refined imports, generated Swagger spec, hardened IMAP listener, drafted documentation |
-| Groq API | Runtime feature for RFP generation, proposal parsing, and comparisons |
-
-Prompts emphasize deterministic JSON output and explicit scoring rationale for proposals.
-
----
-
-## Demo Video
-
-- **Placeholder:** Add a Loom/Drive link demonstrating RFP creation, vendor emailing, IMAP ingestion, and proposal comparison.
-
----
-
-## Known Limitations & Next Steps
-
-- `compareProposalsAi` assumes proposals exist for the target RFP; add guard rails or UX cues before exposing to end users.
-- IMAP callback currently logs emails only; integrate `parseProposal` and ID resolution to store proposals.
-- Frontend shell needs API integration to deliver a full UX.
-- Attachments and HTML-only emails are ignored; extend `email.imap.js` to handle multipart content.
-
----
-
-## License
-
-Internal engineering assignment; no public license supplied.
-
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
