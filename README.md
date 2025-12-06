@@ -275,8 +275,4 @@ Ensure the backend is running on port `3000` (default) and frontend on `5173`. T
 *   **Vendor Portal:** A dedicated login for vendors to submit proposals via a structured form instead of email.
 *   **Auth0 Integration:** Enterprise-grade SSO for procurement teams.
 
----
-
-**Author:** [Your Name]
-**License:** MIT
 
