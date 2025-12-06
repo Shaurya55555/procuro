@@ -11,6 +11,8 @@
 This project demonstrates a full-stack implementation of an AI agent workflow, integrating email protocols (IMAP/SMTP), vector-ready data structuring, and modern web architecture.
 
 ---
+swagger docs - https://procuro.onrender.com/docs/
+backend deployment - https://procuro.onrender.com
 
 ## 📋 Project Overview
 
