@@ -36,16 +36,16 @@ The system is built on a decoupled client-server architecture. The backend serve
 
 ```mermaid
 graph TD
-    User[User / Procurement Officer] -->|HTTPS| Frontend[React Frontend (Vite)]
-    Frontend -->|REST API| Backend[Node.js/Express Backend]
+    User["User / Procurement Officer"] -->|HTTPS| Frontend["React Frontend (Vite)"]
+    Frontend -->|REST API| Backend["Node.js/Express Backend"]
     
     subgraph "Backend Services"
-        Backend -->|SQL| DB[(PostgreSQL)]
-        Backend -->|Inference| AI[Groq AI (Llama-3.3)]
-        Backend -->|IMAP/SMTP| Email[Email Server]
+        Backend -->|SQL| DB[("PostgreSQL")]
+        Backend -->|Inference| AI["Groq AI (Llama-3.3)"]
+        Backend -->|IMAP/SMTP| Email["Email Server"]
     end
 
-    Vendor[Vendor] -->|Email| Email
+    Vendor["Vendor"] -->|Email| Email
 ```
 
 ---
