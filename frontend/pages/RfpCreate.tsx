@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from '../components/Spinner';
+import { useNavigate } from '../components/router';
 import { createRfp, generateRfpFromText } from '../api/rfp';
 import { RfpInput } from '../types';
 import Button from '../components/Button';

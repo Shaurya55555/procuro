@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link } from '../components/Spinner';
+import { Link } from '../components/router';
 import Button from '../components/Button';
 import { PlusCircle } from 'lucide-react';
 

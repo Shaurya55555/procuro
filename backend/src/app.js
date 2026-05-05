@@ -23,18 +23,19 @@ const emailRoutes = require('./api/email/email.routes');
 const app = express();
 
 // ---------------------
-// FIXED CORS FOR PROD
+// CORS
 // ---------------------
 const allowedOrigins = [
   'http://localhost:3000',
-  'https://procuro-1.onrender.com',     // frontend static site
-  'https://procuro.onrender.com'        // backend domain (Render sometimes needs it)
+  'http://localhost:5173',         // Vite dev server
+  'https://procuro-1.onrender.com',
+  'https://procuro.onrender.com'
 ];
 
 app.use(
   cors({
     origin: function (origin, callback) {
-      if (!origin) return callback(null, true); // Mobile apps/Postman
+      if (!origin) return callback(null, true); // Mobile apps/Postman/curl
       if (allowedOrigins.includes(origin)) return callback(null, true);
       return callback(new Error('Not allowed by CORS'));
     },

@@ -10,6 +10,9 @@ export interface RfpInput {
 
 export interface Rfp extends RfpInput {
   id: number;
+  description_raw: string;
+  description_structured: Record<string, any>;
+  created_at?: string;
 }
 
 export interface StructuredRfp extends RfpInput {}
@@ -28,28 +31,35 @@ export interface VendorInput {
   contact_person?: string;
 }
 
-// Proposal Types
+// Proposal Types — ProposalInput sends the parsed AI object as `parsed`
 export interface ProposalInput {
   rfp_id: number;
   vendor_id: number;
   raw_email: string;
-  parsed_data?: ParsedProposal; // Optional because API might parse internally or we pass it
+  parsed?: ParsedProposal; // matches backend field `parsed`
 }
 
 export interface Proposal {
   id: number;
   rfp_id: number;
   vendor_id: number;
+  vendor_name?: string;
+  vendor_email?: string;
   raw_email: string;
-  parsed: ParsedProposal;
+  parsed: ParsedProposal | null;
+  created_at?: string;
 }
 
+/**
+ * Matches the actual AI output from parseProposal.js / parseVendorProposal.js.
+ * Field names must match the LLM extraction schema.
+ */
 export interface ParsedProposal {
-  items: string[];
-  price: string;
-  delivery_timeline: string;
-  warranty: string;
-  payment_terms: string;
+  item_prices: Array<{ item: string; price: number }>;
+  total_cost: number;
+  delivery_time: string;
+  terms: string;
+  conditions: string;
 }
 
 // Email Types
@@ -58,10 +68,11 @@ export interface EmailInput {
   vendorIds: number[];
 }
 
-// Comparison Type (Generic object as per swagger, but we structure it for UI)
+// Comparison Type — `scores` (plural) matches backend response
 export interface ComparisonResult {
   recommendation?: string;
-  score?: Record<string, number>;
+  ranking?: string[];
+  scores?: Record<string, number>;
   summary?: string;
   [key: string]: any;
 }

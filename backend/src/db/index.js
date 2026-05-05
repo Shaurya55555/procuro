@@ -2,8 +2,15 @@ const { Pool } = require('pg');
 const config = require('../config/env');
 const logger = require('../utils/logger');
 
+// Enable SSL in production (required by Render, Heroku, Supabase, etc.)
+// In development, SSL is typically not needed for localhost Postgres.
+const sslConfig = process.env.NODE_ENV === 'production'
+  ? { ssl: { rejectUnauthorized: false } }
+  : {};
+
 const pool = new Pool({
   connectionString: config.DATABASE_URL,
+  ...sslConfig,
 });
 
 pool

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link } from '../components/Spinner';
+import { Link } from '../components/router';
 import { FilePlus, Search, ListPlus } from 'lucide-react';
 
 const Dashboard: React.FC = () => {

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import Spinner, { useParams, Link } from '../components/Spinner';
+import Spinner from '../components/Spinner';
+import { useParams, Link } from '../components/router';
 import { getRfpById, compareProposals } from '../api/rfp';
 import { getVendors } from '../api/vendor';
 import { sendRfpEmail } from '../api/email';
@@ -161,10 +162,10 @@ const RfpDetails: React.FC = () => {
                   <li key={p.id} className="p-3 border rounded-md border-slate-100 hover:bg-slate-50">
                     <div className="flex justify-between">
                       <span className="font-medium">{vendorName}</span>
-                      <span className="text-green-600 font-medium">{p.parsed?.price || 'N/A'}</span>
+                      <span className="text-green-600 font-medium">{p.parsed?.total_cost != null ? `$${p.parsed.total_cost.toLocaleString()}` : 'N/A'}</span>
                     </div>
                     <div className="text-xs text-slate-500 mt-1">
-                      Timeline: {p.parsed?.delivery_timeline || 'N/A'}
+                      Timeline: {p.parsed?.delivery_time || 'N/A'}
                     </div>
                   </li>
                 );

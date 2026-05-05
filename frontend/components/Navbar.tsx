@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link, useLocation } from './Spinner';
+import { Link, useLocation } from './router';
 import { NAV_LINKS } from '../constants';
 import { FileText, LayoutDashboard, Users, Mail } from 'lucide-react';
 

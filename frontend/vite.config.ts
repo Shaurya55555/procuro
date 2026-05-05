@@ -6,13 +6,21 @@ export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
     return {
       server: {
-        port: 3000,
+        port: 5173,
         host: '0.0.0.0',
+        proxy: {
+          // Forward all /api/* requests to the backend during development.
+          // This resolves the CORS issue and ensures the /api base URL works.
+          '/api': {
+            target: 'http://localhost:3000',
+            changeOrigin: true,
+            rewrite: (path) => path.replace(/^\/api/, ''),
+          },
+        },
       },
       plugins: [react()],
       define: {
-        'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
-        'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY)
+        'process.env.API_KEY': JSON.stringify(env.GROQ_API_KEY),
       },
       resolve: {
         alias: {

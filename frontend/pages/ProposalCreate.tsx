@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from '../components/Spinner';
+import { useNavigate } from '../components/router';
 import { getRfps } from '../api/rfp';
 import { getVendors } from '../api/vendor';
 import { parseProposalEmail, createProposal } from '../api/proposal';
@@ -55,7 +55,7 @@ const ProposalCreate: React.FC = () => {
         rfp_id: Number(selectedRfpId),
         vendor_id: Number(selectedVendorId),
         raw_email: rawEmail,
-        parsed_data: parsedData 
+        parsed: parsedData
       });
       navigate(`/rfps/${selectedRfpId}`);
     } catch (err) {
@@ -142,13 +142,13 @@ const ProposalCreate: React.FC = () => {
                   <Check className="w-4 h-4 mr-2" /> Data Extracted Successfully
                 </h3>
                 <div className="grid grid-cols-2 gap-4 text-sm text-green-900">
-                  <div><strong>Price:</strong> {parsedData.price}</div>
-                  <div><strong>Timeline:</strong> {parsedData.delivery_timeline}</div>
-                  <div><strong>Warranty:</strong> {parsedData.warranty}</div>
-                  <div><strong>Payment:</strong> {parsedData.payment_terms}</div>
+                  <div><strong>Total Cost:</strong> {parsedData.total_cost != null ? `$${Number(parsedData.total_cost).toLocaleString()}` : 'N/A'}</div>
+                  <div><strong>Timeline:</strong> {parsedData.delivery_time || 'N/A'}</div>
+                  <div><strong>Terms:</strong> {parsedData.terms || 'N/A'}</div>
+                  <div><strong>Conditions:</strong> {parsedData.conditions || 'N/A'}</div>
                 </div>
                 <div className="mt-2 text-sm text-green-900">
-                  <strong>Items:</strong> {parsedData.items.join(', ')}
+                  <strong>Items:</strong> {Array.isArray(parsedData.item_prices) ? parsedData.item_prices.map((i: any) => i.item).join(', ') : 'N/A'}
                 </div>
               </div>
 

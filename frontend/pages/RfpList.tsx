@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import Spinner, { Link } from '../components/Spinner';
+import Spinner from '../components/Spinner';
+import { Link } from '../components/router';
 import { getRfps } from '../api/rfp';
 import { Rfp } from '../types';
 import { PlusCircle, Eye } from 'lucide-react';
