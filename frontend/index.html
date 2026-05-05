@@ -3,36 +3,15 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Procuro - RFP Management</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-      tailwind.config = {
-        theme: {
-          extend: {
-            colors: {
-              primary: '#2563eb', // blue-600
-              secondary: '#475569', // slate-600
-            }
-          }
-        }
-      }
-    </script>
-  <script type="importmap">
-{
-  "imports": {
-    "react/": "https://aistudiocdn.com/react@^19.2.1/",
-    "react": "https://aistudiocdn.com/react@^19.2.1",
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.1/",
-    "react-router-dom": "https://aistudiocdn.com/react-router-dom@^7.10.1",
-    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.556.0",
-    "axios": "https://aistudiocdn.com/axios@^1.13.2"
-  }
-}
-</script>
-<link rel="stylesheet" href="/index.css">
-</head>
+    <meta name="description" content="Procuro — AI-powered RFP management platform. Parse vendor proposals, generate RFP requirements, and compare bids intelligently." />
+    <title>Procuro - AI-Powered RFP Management</title>
+
+    <!-- App global styles — Tailwind v4 is loaded via Vite plugin (see vite.config.ts) -->
+    <link rel="stylesheet" href="/index.css">
+  </head>
   <body class="bg-slate-50 text-slate-900">
     <div id="root"></div>
-  <script type="module" src="/index.tsx"></script>
-</body>
+    <!-- Vite entry point — Vite handles module resolution (import map not needed) -->
+    <script type="module" src="/index.tsx"></script>
+  </body>
 </html>

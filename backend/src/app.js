@@ -61,4 +61,22 @@ app.use('/vendors', vendorRoutes);
 app.use('/proposals', proposalRoutes);
 app.use('/email', emailRoutes);
 
+// 404 handler — catches requests to unknown routes
+app.use((req, res) => {
+  res.status(404).json({ error: `Route ${req.method} ${req.path} not found` });
+});
+
+// Global error handler — catches errors thrown/passed from route handlers
+// Must have 4 params for Express to recognise it as an error handler
+// eslint-disable-next-line no-unused-vars
+app.use((err, req, res, _next) => {
+  const status = err.status || err.statusCode || 500;
+  const message = process.env.NODE_ENV === 'production' && status === 500
+    ? 'Internal server error'
+    : err.message || 'Internal server error';
+
+  console.error(`[ERROR] ${req.method} ${req.path} — ${err.message}`);
+  res.status(status).json({ error: message });
+});
+
 module.exports = app;

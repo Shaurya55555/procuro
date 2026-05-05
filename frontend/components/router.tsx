@@ -38,11 +38,20 @@ export const Routes: React.FC<{ children: ReactNode }> = ({ children }) => {
 
   let elementToRender: ReactNode = null;
   let params: Record<string, string> = {};
+  let wildcardElement: ReactNode = null;
 
   React.Children.forEach(children, (child) => {
-    if (elementToRender || !React.isValidElement(child)) return;
+    if (!React.isValidElement(child)) return;
     const props = child.props as any;
     const routePath = props.path;
+
+    // Save wildcard for later use as fallback
+    if (routePath === '*') {
+      wildcardElement = props.element;
+      return;
+    }
+
+    if (elementToRender) return;
 
     if (routePath === path) {
       elementToRender = props.element;
@@ -71,12 +80,16 @@ export const Routes: React.FC<{ children: ReactNode }> = ({ children }) => {
     }
   });
 
+  // Fall back to the wildcard route if nothing matched
+  const rendered = elementToRender ?? wildcardElement;
+
   return (
     <RouterContext.Provider value={{ path, navigate: ctx?.navigate || (() => {}), params }}>
-      {elementToRender}
+      {rendered}
     </RouterContext.Provider>
   );
 };
+
 
 export const Route: React.FC<{ path: string; element: ReactNode }> = () => null;
 

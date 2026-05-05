@@ -8,6 +8,7 @@ import RfpDetails from './pages/RfpDetails';
 import VendorList from './pages/VendorList';
 import ProposalList from './pages/ProposalList';
 import ProposalCreate from './pages/ProposalCreate';
+import NotFound from './pages/NotFound';
 
 function App() {
   return (
@@ -21,6 +22,7 @@ function App() {
           <Route path="/vendors" element={<VendorList />} />
           <Route path="/proposals" element={<ProposalList />} />
           <Route path="/proposals/new" element={<ProposalCreate />} />
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </Layout>
     </Router>

@@ -1,4 +1,12 @@
 /* Procuro — Global Styles */
+/* Tailwind v4: CSS-first configuration via @import */
+@import "tailwindcss";
+
+/* Extend Tailwind theme inline (v4 style — no tailwind.config.js needed) */
+@theme {
+  --color-primary: #2563eb;    /* blue-600 */
+  --color-secondary: #475569;  /* slate-600 */
+}
 
 /* Smooth transitions for interactive elements */
 *, *::before, *::after {
