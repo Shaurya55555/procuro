@@ -90,7 +90,7 @@ const createRfp = async (data) => {
     descriptionRawValue,
     structured,
     budgetValue,
-    normalisedItems,
+    JSON.stringify(normalisedItems),
     delivery_timeline ?? null,
     payment_terms ?? null,
     warranty ?? null,
