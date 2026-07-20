@@ -20,7 +20,10 @@ app.listen(config.PORT, () => {
     // Attempt to parse the proposal with AI
     let parsed;
     try {
-      parsed = await parseVendorProposal(body);
+      // Truncate to ~20k characters to stay within Groq 12k token limits
+      const MAX_CHARS = 20000;
+      const truncatedBody = body.length > MAX_CHARS ? body.substring(0, MAX_CHARS) + '\n...[TRUNCATED]' : body;
+      parsed = await parseVendorProposal(truncatedBody);
       logger.info('[IMAP] Proposal parsed successfully');
     } catch (err) {
       logger.error(`[IMAP] Failed to parse proposal: ${err.message}`);

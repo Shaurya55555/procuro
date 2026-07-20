@@ -27,7 +27,7 @@ const getProposalById = async (id) => {
   const text = `
     SELECT p.*, v.name AS vendor_name, v.email AS vendor_email
     FROM proposal p
-    JOIN vendor v ON v.id = p.vendor_id
+    LEFT JOIN vendor v ON v.id = p.vendor_id
     WHERE p.id = $1
   `;
   const res = await db.query(text, [Number(id)]);
@@ -67,7 +67,7 @@ const getProposalsByRfpId = async (rfpId) => {
   const text = `
     SELECT p.*, v.name AS vendor_name, v.email AS vendor_email
     FROM proposal p
-    JOIN vendor v ON v.id = p.vendor_id
+    LEFT JOIN vendor v ON v.id = p.vendor_id
     WHERE p.rfp_id = $1
     ORDER BY p.created_at DESC
   `;

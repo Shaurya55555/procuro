@@ -12,6 +12,9 @@ let currentCallback = null;
 let connecting = false;
 let fetchInFlight = false;
 
+// Track processed UIDs to avoid re-processing emails after reconnects
+const processedUids = new Set();
+
 const scheduleReconnect = (reason, error, instance) => {
   if (reconnectTimer) {
     return;
@@ -87,6 +90,13 @@ const fetchUnseen = async () => {
 
     for await (const msg of activeClient.fetch({ seen: false }, { uid: true, envelope: true, source: true })) {
       try {
+        // Skip emails we have already processed in this session
+        if (processedUids.has(msg.uid)) {
+          // Still mark as seen in case the flag didn't persist
+          await activeClient.messageFlagsAdd(msg.uid, ['\\Seen'], { uid: true });
+          continue;
+        }
+
         const emailData = {
           subject: msg.envelope?.subject || '(no subject)',
           body: msg.source ? msg.source.toString() : '',
@@ -97,6 +107,7 @@ const fetchUnseen = async () => {
         }
 
         await activeClient.messageFlagsAdd(msg.uid, ['\\Seen'], { uid: true });
+        processedUids.add(msg.uid);
       } catch (processingError) {
         logger.error(`[IMAP] processing error: ${processingError.message}`);
       }
@@ -140,6 +151,8 @@ const connectClient = async () => {
     },
     logger: false,
     logRaw: false,
+    socketTimeout: 10 * 60 * 1000, // 10 minutes before socket timeout
+    keepAlive: true,               // send IDLE keepalive to prevent Gmail drops
   });
 
   imapClient.on('error', (err) => onClientError(imapClient, err));

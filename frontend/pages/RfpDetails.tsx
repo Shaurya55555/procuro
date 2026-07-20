@@ -157,7 +157,7 @@ const RfpDetails: React.FC = () => {
           ) : (
             <ul className="space-y-3">
               {proposals.map(p => {
-                const vendorName = vendors.find(v => v.id === p.vendor_id)?.name || `Vendor #${p.vendor_id}`;
+                const vendorName = vendors.find(v => v.id === p.vendor_id)?.name || (p.vendor_id ? `Vendor #${p.vendor_id}` : 'Unlinked Email Proposal');
                 return (
                   <li key={p.id} className="p-3 border rounded-md border-slate-100 hover:bg-slate-50">
                     <div className="flex justify-between">

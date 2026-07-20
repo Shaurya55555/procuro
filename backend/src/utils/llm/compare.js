@@ -15,7 +15,7 @@ const compareProposalsAi = async (rfpId) => {
   }
 
   const proposalResult = await db.query(
-    'SELECT p.*, v.name AS vendor_name, v.email AS vendor_email FROM proposal p JOIN vendor v ON v.id = p.vendor_id WHERE p.rfp_id = $1 ORDER BY p.created_at ASC',
+    'SELECT p.*, v.name AS vendor_name, v.email AS vendor_email FROM proposal p LEFT JOIN vendor v ON v.id = p.vendor_id WHERE p.rfp_id = $1 ORDER BY p.created_at ASC',
     [numericId]
   );
 
@@ -33,9 +33,9 @@ const compareProposalsAi = async (rfpId) => {
     {
       role: 'user',
       content: `Compare the vendor proposals against the RFP requirements and return ONLY valid JSON with:
-- ranking: array of vendor_id ordered best to worst
-- scores: object mapping vendor_id to a 0-100 score
-- recommendation: concise string summary referencing vendor names
+- ranking: array of proposal id ordered best to worst
+- scores: object mapping proposal id to a 0-100 score
+- recommendation: concise string summary referencing vendor names (or proposal details if no vendor)
 
 RFP:
 ${JSON.stringify(rfp)}
@@ -49,7 +49,7 @@ ${JSON.stringify(proposals)}
   const comparison = await createJsonCompletion(messages, { maxTokens: 900 });
 
   if (!Array.isArray(comparison.ranking)) {
-    comparison.ranking = proposals.map((proposal) => String(proposal.vendor_id));
+    comparison.ranking = proposals.map((proposal) => String(proposal.id));
   } else {
     comparison.ranking = comparison.ranking.map((value) => String(value));
   }
@@ -64,9 +64,9 @@ ${JSON.stringify(proposals)}
   }, {});
 
   proposals.forEach((proposal) => {
-    const vendorKey = String(proposal.vendor_id);
-    if (typeof comparison.scores[vendorKey] !== 'number') {
-      comparison.scores[vendorKey] = 0;
+    const proposalKey = String(proposal.id);
+    if (typeof comparison.scores[proposalKey] !== 'number') {
+      comparison.scores[proposalKey] = 0;
     }
   });
 
